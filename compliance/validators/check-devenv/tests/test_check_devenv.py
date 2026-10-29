@@ -3,9 +3,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 from check_devenv import check as mod
-from check_devenv.cli import main
+from check_devenv.cli import app
 
 SNAP_LIST = (
     "Name      Version  Rev  Tracking       Publisher  Notes\n"
@@ -103,4 +104,4 @@ def test_cli_error_exit_code(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
         raise mod.CommandError("boom")
 
     monkeypatch.setattr("check_devenv.check.check_environment", boom)
-    assert main([str(tmp_path)]) == 2
+    assert CliRunner().invoke(app, [str(tmp_path)]).exit_code == 2

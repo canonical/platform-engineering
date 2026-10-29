@@ -8,7 +8,7 @@ license = "Apache-2.0"
 dependencies = ["pfe-validators-common"]
 
 [project.scripts]
-validator-template = "validator_template.cli:main"
+validator-template = "validator_template.cli:app"
 
 [tool.uv.sources]
 pfe-validators-common = { workspace = true }

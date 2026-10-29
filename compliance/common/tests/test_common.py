@@ -2,8 +2,11 @@ import json
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
-from pfe_validators_common import Finding, Severity, iter_files, render, run_cli
+from pfe_validators_common import Finding, Severity, create_app, iter_files, render
+
+runner = CliRunner()
 
 
 def test_render_text() -> None:
@@ -43,19 +46,62 @@ def test_iter_files_filters_suffix_and_skips_venv(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(("findings", "code"), [([], 0), ([Finding("P", Path("x"), "m")], 1)])
-def test_run_cli_exit_codes(tmp_path: Path, findings: list[Finding], code: int) -> None:
-    assert run_cli("t", "d", lambda _paths: findings, [str(tmp_path), "--format", "text"]) == code
+def test_cli_exit_codes(tmp_path: Path, findings: list[Finding], code: int) -> None:
+    app = create_app("t", "d", lambda _paths: findings)
+    result = runner.invoke(app, [str(tmp_path), "--format", "text"])
+    assert result.exit_code == code
 
 
-def test_run_cli_missing_path(tmp_path: Path) -> None:
-    assert run_cli("t", "d", lambda _paths: [], [str(tmp_path / "nope")]) == 2
+def test_cli_passes_paths_and_prints_findings(tmp_path: Path) -> None:
+    seen: list[Path] = []
+
+    def check(paths: object) -> list[Finding]:
+        seen.extend(paths)  # type: ignore[call-overload]
+        return [Finding("PFE-X-001", Path("a.py"), "bad", line=1)]
+
+    result = runner.invoke(create_app("t", "d", check), [str(tmp_path), "--format", "text"])
+    assert seen == [tmp_path]
+    assert "a.py:1: error: [PFE-X-001] bad" in result.output
 
 
-def test_run_cli_check_error(tmp_path: Path) -> None:
+def test_cli_defaults_to_current_directory() -> None:
+    seen: list[Path] = []
+
+    def check(paths: object) -> list[Finding]:
+        seen.extend(paths)  # type: ignore[call-overload]
+        return []
+
+    assert runner.invoke(create_app("t", "d", check), []).exit_code == 0
+    assert seen == [Path(".")]
+
+
+def test_cli_github_format_default_on_actions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    app = create_app("t", "d", lambda _paths: [Finding("PFE-X-001", Path("a.py"), "bad")])
+    result = runner.invoke(app, [str(tmp_path)])
+    assert "::error file=a.py,title=PFE-X-001::bad" in result.output
+
+
+def test_cli_missing_path(tmp_path: Path) -> None:
+    result = runner.invoke(create_app("t", "d", lambda _paths: []), [str(tmp_path / "nope")])
+    assert result.exit_code == 2
+
+
+def test_cli_invalid_format(tmp_path: Path) -> None:
+    result = runner.invoke(
+        create_app("t", "d", lambda _paths: []), [str(tmp_path), "--format", "x"]
+    )
+    assert result.exit_code == 2
+
+
+def test_cli_check_error(tmp_path: Path) -> None:
     def boom(_paths: object) -> list[Finding]:
         raise RuntimeError("boom")
 
-    assert run_cli("t", "d", boom, [str(tmp_path)]) == 2
+    result = runner.invoke(create_app("t", "d", boom), [str(tmp_path)])
+    assert result.exit_code == 2
 
 
 def test_pathless_finding_renders() -> None:

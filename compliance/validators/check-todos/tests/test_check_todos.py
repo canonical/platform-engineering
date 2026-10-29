@@ -1,9 +1,10 @@
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 from check_todos.check import PRACTICE_ID, check, scan_text
-from check_todos.cli import main
+from check_todos.cli import app
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -39,6 +40,7 @@ def test_check_good_fixtures() -> None:
     assert check([FIXTURES / "good"]) == []
 
 
-def test_main_exit_codes() -> None:
-    assert main([str(FIXTURES / "good"), "--format", "text"]) == 0
-    assert main([str(FIXTURES / "bad"), "--format", "text"]) == 1
+def test_cli_exit_codes() -> None:
+    runner = CliRunner()
+    assert runner.invoke(app, [str(FIXTURES / "good"), "--format", "text"]).exit_code == 0
+    assert runner.invoke(app, [str(FIXTURES / "bad"), "--format", "text"]).exit_code == 1

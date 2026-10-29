@@ -18,10 +18,11 @@ Conventions for humans and agents contributing to this repository. See
   `--from`.
 * Start from
   [`compliance/validators/_template`][template].
-* Python only, standard library first. Shared code goes to
-  `compliance/common` instead of being copied.
-* Use `run_cli()` so every validator has the same interface and exit codes,
-  and tag every `Finding` with a practice ID (`PFE-<AREA>-<NNN>`).
+* Python only, standard library first; the command line uses Typer. Shared
+  code goes to `compliance/common` instead of being copied.
+* Use `create_app()` (a Typer app) so every validator has the same interface
+  and exit codes, and tag every `Finding` with a practice ID
+  (`PFE-<AREA>-<NNN>`).
 * Each validator ships `pyproject.toml`, `action.yml` (composite action
   running `uvx --from "${{ github.action_path }}"`), `README.md`, and
   `tests/` with good and bad fixtures.

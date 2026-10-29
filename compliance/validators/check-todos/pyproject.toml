@@ -8,7 +8,7 @@ license = "Apache-2.0"
 dependencies = ["pfe-validators-common"]
 
 [project.scripts]
-check-todos = "check_todos.cli:main"
+check-todos = "check_todos.cli:app"
 
 [tool.uv.sources]
 pfe-validators-common = { workspace = true }

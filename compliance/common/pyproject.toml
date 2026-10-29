@@ -5,7 +5,7 @@ description = "Shared helpers for Platform Engineering compliance validators"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
-dependencies = []
+dependencies = ["typer>=0.12"]
 
 [build-system]
 requires = ["hatchling>=1.25"]
