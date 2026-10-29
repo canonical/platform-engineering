@@ -1,7 +1,5 @@
 """File discovery helpers."""
 
-from __future__ import annotations
-
 import subprocess  # nosec B404
 from collections.abc import Iterable, Iterator
 from pathlib import Path

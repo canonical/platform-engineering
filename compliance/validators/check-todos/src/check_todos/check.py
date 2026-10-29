@@ -1,7 +1,5 @@
 """Detect TODO/FIXME comments in source files."""
 
-from __future__ import annotations
-
 import re
 from collections.abc import Iterator, Sequence
 from pathlib import Path

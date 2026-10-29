@@ -1,7 +1,5 @@
 """Standard command line for validators."""
 
-from __future__ import annotations
-
 import argparse
 import os
 import sys

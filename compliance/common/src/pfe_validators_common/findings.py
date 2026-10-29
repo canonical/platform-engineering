@@ -1,7 +1,5 @@
 """Result model shared by all validators."""
 
-from __future__ import annotations
-
 import enum
 from dataclasses import asdict, dataclass
 from pathlib import Path
