@@ -1,0 +1,13 @@
+name: Markdownlint
+
+on:
+  pull_request:
+
+jobs:
+  mdl:
+    runs-on: [self-hosted-linux-amd64-noble-edge]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+      - name: Run Markdown Lint
+        uses: actionshub/markdownlint@main
