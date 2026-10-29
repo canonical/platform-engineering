@@ -4,12 +4,11 @@
 name = "platform-engineering-practices"
 version = "0.0.0"
 description = "Workspace root for Platform Engineering practices, validators and tooling"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "pfe-validators-common",
     "check-todos",
     "check-devenv",
-    "pyyaml>=6.0",
 ]
 
 [dependency-groups]
@@ -17,15 +16,14 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.6",
     "mypy>=1.10",
-    "types-pyyaml>=6.0",
 ]
 
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["packages/*", "validators/*"]
-exclude = ["validators/_template"]
+members = ["compliance/common", "compliance/validators/*"]
+exclude = ["compliance/validators/_template"]
 
 [tool.uv.sources]
 pfe-validators-common = { workspace = true }
@@ -36,16 +34,12 @@ check-devenv = { workspace = true }
 line-length = 99
 target-version = "py310"
 include = ["*.py", "*.pyi", "**/pyproject.toml"]
-src = ["packages/*/src", "validators/*/src", "tools"]
-# scripts/ predates the workspace tooling and is left untouched for now.
-extend-exclude = ["validators/*/tests/fixtures", "scripts"]
+src = ["compliance/common/src", "compliance/validators/*/src"]
+# The vendored templates have their own tooling and configuration.
+extend-exclude = ["compliance/validators/*/tests/fixtures", "templates"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "BLE", "UP", "D", "N", "SIM", "RUF"]
-
-[tool.ruff.lint.isort]
-# tools/ run on the workspace Python (>=3.11), validators stay 3.10 compatible.
-extra-standard-library = ["tomllib"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -55,11 +49,10 @@ convention = "google"
 
 [tool.mypy]
 strict = true
-files = ["packages/*/src", "validators/[!_]*/src", "tools"]
-explicit_package_bases = true
-exclude = ["/tests/fixtures/", "validators/_template/"]
+files = ["compliance/common/src", "compliance/validators/[!_]*/src"]
+exclude = ["/tests/fixtures/", "compliance/validators/_template/"]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
-testpaths = ["tests", "packages", "validators"]
+testpaths = ["compliance"]
 norecursedirs = ["fixtures", "_template", ".venv"]

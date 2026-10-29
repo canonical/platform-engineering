@@ -2,7 +2,7 @@
 
 Reusable GitHub Actions that are not validators (setup, publishing,
 reporting, ...). Validator actions live next to their code in
-[`validators/<name>/action.yml`](../validators).
+[`compliance/validators/<name>/action.yml`](../compliance/validators).
 
 Each action lives in its own directory with an `action.yml` and a
 `README.md`:
@@ -21,5 +21,5 @@ Consume it with:
 ```
 
 Prefer composite actions. If an action needs Python logic, put the logic in a
-workspace package under `packages/` and run it with
+workspace package under `compliance/` and run it with
 `uvx --from "${{ github.action_path }}/..."`.

@@ -38,7 +38,7 @@ jobs:
       - id: list
         name: List validators
         run: |
-          validators=$(find validators -mindepth 1 -maxdepth 1 -type d ! -name '_*' -printf '%f\n' \
+          validators=$(find compliance/validators -mindepth 1 -maxdepth 1 -type d ! -name '_*' -printf '%f\n' \
             | sort | jq -R . | jq -cs .)
           echo "validators=$validators" >> "$GITHUB_OUTPUT"
 
@@ -60,5 +60,5 @@ jobs:
         env:
           VALIDATOR: ${{ matrix.validator }}
         run: |
-          uvx --no-cache --from "git+file://${GITHUB_WORKSPACE}#subdirectory=validators/${VALIDATOR}" \
+          uvx --no-cache --from "git+file://${GITHUB_WORKSPACE}#subdirectory=compliance/compliance/validators/${VALIDATOR}" \
             "${VALIDATOR}" --help

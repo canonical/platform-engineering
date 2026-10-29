@@ -27,7 +27,7 @@ Verify the environment with the `check-devenv` validator, run from the
 project directory:
 
 ```shell
-uvx --from 'git+https://github.com/canonical/platform-engineering@main#subdirectory=validators/check-devenv' \
+uvx --from 'git+https://github.com/canonical/platform-engineering@main#subdirectory=compliance/validators/check-devenv' \
   check-devenv --format text .
 ```
 

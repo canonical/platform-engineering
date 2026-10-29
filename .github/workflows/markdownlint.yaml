@@ -11,3 +11,6 @@ jobs:
         uses: actions/checkout@v7
       - name: Run Markdown Lint
         uses: actionshub/markdownlint@main
+        with:
+          # Vendored templates follow their own conventions.
+          filesToIgnoreRegex: ^templates/
