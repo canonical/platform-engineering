@@ -52,7 +52,7 @@ def create_app(name: str, description: str, check: Check) -> typer.Typer:
         pretty_exceptions_enable=False,
     )
 
-    @app.command(name=name)
+    @app.command(name=name, help=description)
     def run(
         paths: Annotated[
             list[Path] | None,
