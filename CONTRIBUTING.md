@@ -1,0 +1,36 @@
+# Contributing
+
+## Skill first
+
+Every action that has to be repeated on more than 5 repositories must have a skill.
+
+A pull request MUST be opened on this repository with:
+
+1. **A doc, spec or KB entry** with the context and the team contact.
+2. **A validator** checking whether a repository is compliant.
+   - The first version does not have to be complete.
+   - Validators are versioned.
+   - Validators can be run with `uvx` on any repository.
+3. **A skill** to execute the work.
+   - It may just be a one-line prompt.
+   - Skills are versioned.
+4. **A charmkeeper recipe** to apply the skill on multiple repositories.
+
+## Development setup
+
+Requirements: [uv](https://docs.astral.sh/uv/) and Node.js (for markdownlint, via `npx`).
+
+```shell
+make lint   # all linters and the structure check
+make fmt    # auto-format Python
+make test   # validator tests
+```
+
+## Conventions
+
+- Skills: `skills/<name>/SKILL.md` with `name` and `description` front matter.
+  `name` must match the folder name.
+- Knowledge base: `kb/<topic>.md` with a `title` and `owner` front matter.
+- Validators: Python modules in `validators/`, exposed as console scripts in
+  `pyproject.toml`, with tests in `validators/tests/`.
+- Use [conventional commits](https://www.conventionalcommits.org/).
