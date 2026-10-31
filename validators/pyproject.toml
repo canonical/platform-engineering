@@ -1,0 +1,18 @@
+# uv workspace root: one member per validator, each with its own pyproject.toml.
+[project]
+name = "pfe-validators"
+version = "0.0.0"
+description = "Workspace of Platform Engineering validators"
+requires-python = ">=3.10"
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["check-structure"]
+
+[dependency-groups]
+dev = ["pytest", "ruff", "codespell", "yamllint"]
+
+[tool.pytest.ini_options]
+testpaths = ["."]

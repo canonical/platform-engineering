@@ -1,0 +1,15 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+version: 1
+rocks: []
+charms:
+- name: {{ charm_name }}
+  charmcraft-yaml: charmcraft.yaml
+  channel: latest/edge
+  resources:
+    {{ workload_container }}-image:
+      type: oci-image
+  platforms:
+  - arch: amd64
+snaps: []
