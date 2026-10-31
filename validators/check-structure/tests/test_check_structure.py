@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from validators.check_structure import check_kb, check_skills, main
+from check_structure import check_kb, check_skills, main
 
 
 def test_valid(tmp_path: Path):

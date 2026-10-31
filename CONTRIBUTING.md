@@ -18,12 +18,13 @@ A pull request MUST be opened on this repository with:
 
 ## Development setup
 
-Requirements: [uv](https://docs.astral.sh/uv/) and Node.js (for markdownlint, via `npx`).
+Requirements: [uv](https://docs.astral.sh/uv/), [just](https://just.systems/) and Node.js
+(for markdownlint, via `npx`).
 
 ```shell
-make lint   # all linters and the structure check
-make fmt    # auto-format Python
-make test   # validator tests
+just lint   # all linters and the structure check
+just fmt    # auto-format Python
+just test   # validator tests
 ```
 
 ## Conventions
@@ -31,6 +32,6 @@ make test   # validator tests
 - Skills: `skills/<name>/SKILL.md` with `name` and `description` front matter.
   `name` must match the folder name.
 - Knowledge base: `kb/<topic>.md` with a `title` and `owner` front matter.
-- Validators: Python modules in `validators/`, exposed as console scripts in
-  `pyproject.toml`, with tests in `validators/tests/`.
+- Validators: one package per validator in `validators/<name>/` (a member of the uv workspace
+  in `validators/pyproject.toml`), with its own `pyproject.toml`, a console script and tests.
 - Use [conventional commits](https://www.conventionalcommits.org/).

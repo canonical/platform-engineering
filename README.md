@@ -25,7 +25,7 @@ Internal-only content lives in `canonical/pfe-internal`.
 ## Using a validator
 
 ```shell
-uvx --from git+https://github.com/canonical/platform-engineering@<tag> <validator> <path-to-repo>
+uvx --from "git+https://github.com/canonical/platform-engineering@<tag>#subdirectory=validators/<name>" <script> <path-to-repo>
 ```
 
 ## Using a template

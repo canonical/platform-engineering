@@ -9,4 +9,4 @@
 - [ ] Skill (versioned)
 - [ ] Charmkeeper recipe to apply the skill on multiple repositories
 - [ ] Template updated if applicable
-- [ ] `make lint` and `make test` pass
+- [ ] `just lint` and `just test` pass
