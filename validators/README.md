@@ -19,4 +19,4 @@ To add a validator, create the folder and add it to `members` in `validators/pyp
 
 | Validator | Description |
 | --- | --- |
-| [`check-structure`](check-structure/) | Skills and KB front matter |
+| [`terraform-compliance`](terraform-compliance/) | Terraform modules against CC008 |

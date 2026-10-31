@@ -3,13 +3,13 @@
 name = "pfe-validators"
 version = "0.0.0"
 description = "Workspace of Platform Engineering validators"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["check-structure"]
+members = ["terraform-compliance"]
 
 [dependency-groups]
 dev = ["pytest", "ruff", "codespell", "yamllint"]

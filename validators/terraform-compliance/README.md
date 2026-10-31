@@ -1,0 +1,58 @@
+# terraform-compliance
+
+Generic checker that validates Terraform modules against a configurable spec. The spec enforced
+by default is CC008. Adapted from
+[`canonical/operator-workflows`](https://github.com/canonical/operator-workflows/tree/main/terraform-compliance).
+
+Layout (`src/terraform_compliance/`):
+
+- `spec.py`: the requirements, as data (`DEFAULT_SPEC` currently encodes CC008).
+- `hcl.py`: `.tf` loading and `python-hcl2` normalisation.
+- `check.py`: the checks and CLI (spec-agnostic; takes a spec argument).
+
+## Usage
+
+Requires Python >= 3.11.
+
+```shell
+uvx --from "git+https://github.com/canonical/platform-engineering@terraform-compliance/v<version>#subdirectory=validators/terraform-compliance" \
+  terraform-compliance /path/to/repo/terraform
+```
+
+Exit codes: `0` pass, `1` violations found, `2` no directories given.
+Flags: `--verbose`, `--check <slug>`, `--list-checks`.
+
+## What it checks
+
+- Required files: `terraform.tf`, `variables.tf`, `outputs.tf`, `main.tf`, `README.md`.
+- `terraform.tf` has `required_version` and a `juju/juju` provider allowing `>= 1.0.0`.
+- Variable and output blocks are alphabetical.
+- Mandatory variables/outputs per module type (charm, component, product), plus a broad
+  type-family check and CC008 defaults where unambiguous. Optional variables/outputs are
+  validated only when present. Names retired under CC008 (for example `endpoints`, split into
+  `provides`/`requires`) are flagged as deprecated.
+- Required non-null variables explicitly declare `nullable = false`.
+- Charm `application` outputs reference the complete `juju_application` resource. Literal
+  `provides`/`requires` maps contain endpoint objects with `kind`, `name` and `endpoint`
+  fields; computed expressions are left to Terraform.
+- Remote module sources are pinned (a `?ref=` that isn't a floating branch, or a registry
+  `version`).
+
+Module type is inferred: no `module` blocks is a charm; composing modules and defining a
+`juju_model`/`juju_secret`/`juju_integration`/`juju_offer` is a product; composing only is a
+component.
+
+## Known deviations
+
+- `providers.tf` is not required (CC008 modules are non-root, so have no provider config).
+- General output types aren't checked (Terraform infers them from the value).
+- `provides`/`requires` outputs are optional: CC008 makes them mandatory only when the charm
+  defines that relation, which Terraform can't detect.
+- `units` is optional: CC008 requires it except on subordinate charms, which isn't visible from
+  Terraform.
+
+## Development
+
+```shell
+uv run --project validators --all-packages pytest validators/terraform-compliance
+```

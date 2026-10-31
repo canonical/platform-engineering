@@ -32,7 +32,7 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6
       - run: uvx --from rust-just just test
 
-  render-charm-template:
+  validate-charm-template:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -44,6 +44,10 @@ jobs:
           uvx copier copy --defaults
           -d charm_name=ci-charm -d workload_container=ci-workload
           . "$RUNNER_TEMP/ci-charm"
+      - name: Validate Terraform modules of rendered charm
+        run: >-
+          uv run --project validators --all-packages
+          terraform-compliance --verbose "$RUNNER_TEMP/ci-charm/terraform/charm"
       - name: Lint and unit-test rendered charm
         working-directory: ${{ runner.temp }}/ci-charm
         run: |
