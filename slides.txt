@@ -1,0 +1,96 @@
+1
+Sebastien Georget - 2026/10/29
+Platform engineering standards in Github
+
+2
+Problem space
+The time and energy to evolve our standards is too high.
+A typical change of “how we do” can involve:
+Updating platform-engineering-charm-template
+Updating platform-engineering-docs
+Updating platform-engineering-contributing-guide
+Updating copilot-collections
+Updating operator-workflows
+
+Proposal
+Adopt mono-repos for our standards and practices:
+canonical/platform-engineering for everything public
+canonical/pfe-internal for everything internal
+
+A single PR to update a practice/standard that will update, the corresponding:
+Template
+Documentation
+Skill
+Validator
+3
+
+canonical/platform-engineering content
+/docs: source for a public RTD containing PFE development practices ␋		(replaces platform-engineering-contributing-guide)
+
+/kb: public knowledge base (inc. “spec” bundle)
+
+/skills: skills supporting our dev practices
+
+/templates
+	/charm: replaces platform-engineering-charm-template
+	/monorepos?
+
+/validators: uvx callable scripts to enforce practices
+4
+
+canonical/pfe-internal content
+/docs: our internal RTD, replaces platform-engineering-docs
+
+/kb: internal knowledge base (inc specs…)
+
+/skills
+
+
+Part of entirety of platform-engineering-ninja / platform-engineering-notifications
+5
+
+What about OKB?
+Proposal: bring the operational KB close to where we use it
+
+canonical/platform-engineering-deployments
+/deployments
+		/<product>
+			/kb
+/tools
+6
+
+How does it translate in EMEA
+7
+Scale your skills
+
+Skill first
+8
+Every action that has to be repeated on more than 5 repositories has as a skill
+
+A PR MUST be created on canonical/platform-engineering with:
+A doc, spec, or KB entry with the context and the team contact.
+A “validator” to check if a repo is compliant or not
+First version does not have to be complete.
+Validators are versioned.
+Validators can be run via “uvx” on any repo
+A skill to execute the work
+It may just be a one-line prompt.
+Skills are versioned
+A charmkeeper recipe to be able to apply the skill on multiple repos
+
+Skills to create
+9
+12f-v1-to-v2-migration: Ali
+12f-v2-best-practices: Ali
+operator-workflow-to-charm-ci-migration: Javi
+Charm-ci-v1-best-practices: Javi
+terraform-cc008-migration:  Fouad
+Terraform-cc008-best-practices: Fouad
+
+charm-best-practices: Swetha
+charm-unit-test-best-practices: 
+Should identity integration tests that should be 
+charm-integration-test-best-practices: Thanh
+Should recommend some tests to move to unit tests
+Internal:
+Staging-deployment: Haroon

@@ -1,0 +1,8 @@
+# Copier entry point. Copier requires copier.yml at the root of the repository, so it
+# is used to expose the templates stored under templates/.
+# Currently there is a single template: templates/charm.
+_subdirectory: templates/charm/template
+_templates_suffix: .jinja
+_min_copier_version: "9.4.0"
+---
+!include templates/charm/questions.yml

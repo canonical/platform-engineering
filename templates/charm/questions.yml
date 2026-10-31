@@ -1,0 +1,41 @@
+charm_name:
+  type: str
+  help: Charm name (lowercase, hyphens), e.g. my-service
+  validator: >-
+    {% if not (charm_name | regex_search('^[a-z][a-z0-9]*(-[a-z0-9]+)*$')) %}
+    Use lowercase letters, digits and hyphens only.
+    {% endif %}
+
+title:
+  type: str
+  help: Charm title (shown on Charmhub)
+  default: "{{ charm_name | replace('-', ' ') | title }}"
+
+summary:
+  type: str
+  help: One-line summary of the charm
+  default: A very short one-line summary of the charm.
+
+repo_slug:
+  type: str
+  help: GitHub repository (org/name) used in links
+  default: "canonical/{{ charm_name }}"
+
+workload_container:
+  type: str
+  help: Name of the workload container
+  default: workload
+  validator: >-
+    {% if not (workload_container | regex_search('^[a-z][a-z0-9]*(-[a-z0-9]+)*$')) %}
+    Use lowercase letters, digits and hyphens only.
+    {% endif %}
+
+workload_image:
+  type: str
+  help: Upstream OCI image of the workload
+  default: kennethreitz/httpbin
+
+workload_command:
+  type: str
+  help: Command Pebble runs in the workload container
+  default: gunicorn -b 0.0.0.0:80 httpbin:app -k gevent
