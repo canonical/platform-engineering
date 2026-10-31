@@ -1,0 +1,226 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+"""Terraform module requirements, as data.
+
+Single source of truth for *what* the checker requires; check.py
+holds the *how*, generically applying whatever spec it is given. No checking
+logic here. ``DEFAULT_SPEC`` below currently encodes the CC008 standard.
+"""
+
+from dataclasses import dataclass
+from enum import StrEnum
+
+from terraform_compliance.hcl import TerraformType
+
+
+class ModuleType(StrEnum):
+    """Module categories this checker distinguishes."""
+
+    CHARM = "charm"
+    COMPONENT = "component"
+    PRODUCT = "product"
+
+
+class _DefaultSentinel:
+    """Named sentinel for a variable default policy."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __repr__(self) -> str:
+        return self.name
+
+
+# `None` is a valid Terraform default, so explicit sentinels represent policies.
+DEFAULT_UNCHECKED = _DefaultSentinel("DEFAULT_UNCHECKED")
+DEFAULT_FORBIDDEN = _DefaultSentinel("DEFAULT_FORBIDDEN")
+
+
+@dataclass(frozen=True)
+class VariableRule:
+    """One variable requirement."""
+
+    name: str
+    allowed_type: TerraformType | None = None
+    default: object = DEFAULT_UNCHECKED
+    nullable: bool | None = None
+    optional: bool = False  # may be absent; if present, still validated
+
+
+@dataclass(frozen=True)
+class OutputRule:
+    """One output presence and statically-checkable value-shape requirement."""
+
+    name: str
+    optional: bool = False
+    expected_resource_type: str | None = None
+    literal_map_entry_fields: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ModuleInterface:
+    """Mandatory/optional variables and outputs for a module type."""
+
+    variables: tuple[VariableRule, ...]
+    outputs: tuple[OutputRule, ...]
+
+
+@dataclass(frozen=True)
+class TerraformBlockRequirements:
+    """Required `terraform.tf` provider settings."""
+
+    provider_source: str
+    minimum_provider_version: str
+
+
+@dataclass(frozen=True)
+class ModuleSpec:
+    """The full set of requirements a Terraform module must satisfy."""
+
+    required_files: tuple[str, ...]
+    terraform_block: TerraformBlockRequirements
+    tying_resource_types: frozenset[str]
+    floating_ref_names: frozenset[str]
+    deprecated_names: frozenset[str]
+    module_interfaces: dict[ModuleType, ModuleInterface]
+
+
+# The spec currently enforced: the CC008 Terraform module standard.
+DEFAULT_SPEC = ModuleSpec(
+    required_files=(
+        "terraform.tf",
+        "variables.tf",
+        "outputs.tf",
+        "main.tf",
+        "README.md",
+    ),
+    terraform_block=TerraformBlockRequirements(
+        provider_source="juju/juju",
+        minimum_provider_version="1.0.0",
+    ),
+    # Resource/data types that mark a module as tying components together.
+    tying_resource_types=frozenset(
+        {"juju_model", "juju_secret", "juju_integration", "juju_offer"}
+    ),
+    # Floating branch names disallowed as module refs.
+    floating_ref_names=frozenset({"main", "master", "trunk", "develop", "development", "head"}),
+    # Names retired under CC008 (endpoints was split into provides/requires).
+    deprecated_names=frozenset({"endpoint", "endpoints"}),
+    module_interfaces={
+        ModuleType.CHARM: ModuleInterface(
+            variables=(
+                VariableRule("app_name", TerraformType.STRING, nullable=False),
+                VariableRule("channel", TerraformType.STRING, nullable=False),
+                VariableRule("config", TerraformType.MAP, default={}),
+                VariableRule("constraints", TerraformType.STRING, default=None),
+                VariableRule(
+                    "model_uuid",
+                    TerraformType.STRING,
+                    default=DEFAULT_FORBIDDEN,
+                    nullable=False,
+                ),
+                VariableRule("revision", TerraformType.NUMBER, default=None),
+                # Optional: subordinate charms must omit units, and
+                # subordinate-ness isn't visible from Terraform.
+                VariableRule("units", TerraformType.NUMBER, default=1, optional=True),
+                # Optional CC008 charm variables (validated only when present).
+                VariableRule("base", TerraformType.STRING, default=None, optional=True),
+                VariableRule("expose", default={}, optional=True),
+                VariableRule(
+                    "resources",
+                    TerraformType.MAP,
+                    default={},
+                    optional=True,
+                ),
+                VariableRule(
+                    "machines",
+                    TerraformType.SET,
+                    default=[],
+                    optional=True,
+                ),
+                VariableRule(
+                    "endpoint_bindings",
+                    TerraformType.SET,
+                    default=[],
+                    optional=True,
+                ),
+                VariableRule(
+                    "storage_directives",
+                    TerraformType.MAP,
+                    default={},
+                    optional=True,
+                ),
+                VariableRule(
+                    "offered_endpoints",
+                    TerraformType.LIST,
+                    default=[],
+                    optional=True,
+                ),
+            ),
+            # provides/requires: CC008 "mandatory if the relation exists",
+            # undetectable from Terraform, so optional here.
+            outputs=(
+                OutputRule("application", expected_resource_type="juju_application"),
+                OutputRule(
+                    "provides",
+                    optional=True,
+                    literal_map_entry_fields=("kind", "name", "endpoint"),
+                ),
+                OutputRule(
+                    "requires",
+                    optional=True,
+                    literal_map_entry_fields=("kind", "name", "endpoint"),
+                ),
+                OutputRule("offers", optional=True),
+            ),
+        ),
+        ModuleType.COMPONENT: ModuleInterface(
+            variables=(
+                VariableRule(
+                    "model_uuid",
+                    TerraformType.STRING,
+                    default=DEFAULT_FORBIDDEN,
+                    nullable=False,
+                ),
+                # `<external_integrations>` is author-named, so unchecked.
+                VariableRule(
+                    "expose_endpoints",
+                    TerraformType.LIST,
+                    default=[],
+                    optional=True,
+                ),
+            ),
+            outputs=(
+                OutputRule("components"),
+                OutputRule(
+                    "provides",
+                    optional=True,
+                    literal_map_entry_fields=("kind", "name", "endpoint"),
+                ),
+                OutputRule(
+                    "requires",
+                    optional=True,
+                    literal_map_entry_fields=("kind", "name", "endpoint"),
+                ),
+                OutputRule("offers", optional=True),
+            ),
+        ),
+        ModuleType.PRODUCT: ModuleInterface(
+            variables=(
+                VariableRule("risk", TerraformType.STRING),
+                # logging-config/proxy: CC008 "mandatory if the module creates/manages the juju
+                # model",
+                # marked optional for lack of conditional checking mechanism.
+                VariableRule("logging-config", TerraformType.STRING, optional=True),
+                VariableRule("proxy", TerraformType.OBJECT, optional=True),
+            ),
+            outputs=(
+                OutputRule("metadata"),
+                OutputRule("models"),
+                OutputRule("offers", optional=True),
+                OutputRule("credentials", optional=True),
+            ),
+        ),
+    },
+)

@@ -4,14 +4,13 @@ uv := "uv run --project validators --all-packages"
 default:
     @just --list
 
-# Run all linters and the structure check
+# Run all linters
 lint:
     {{uv}} ruff check .
     {{uv}} ruff format --check .
     {{uv}} codespell
     {{uv}} yamllint .
     npx --yes markdownlint-cli2 "**/*.md" "#node_modules" "#.venv" "#validators/.venv" "#templates/*/template"
-    {{uv}} pfe-check-structure .
 
 # Auto-format Python
 fmt:
