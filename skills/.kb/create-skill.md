@@ -36,7 +36,7 @@ Use [`configure-gh-jira-sync-bot`](../configure-gh-jira-sync-bot/) as a starting
 ## Checklist
 
 1. Create the skill folder and write `SKILL.md` with front matter and a short, imperative workflow.
-2. Put reusable templates in `assets/` instead of duplicating them in the prompt.
+2. Reference templates that already exist under `templates/` instead of copying them into the skill; use `assets/` only for files with no other home.
 3. Add or update the matching validator in `validators/` and reference its versioned `uvx` command from the skill.
 4. Add `charmkeeper.yaml` with eligibility rules, an LLM prompt, guardrails and validation tests.
 5. Keep user-specific values out of the skill; instruct the agent to discover them from the target repository.

@@ -14,7 +14,7 @@ canonical/platform-engineering-charm-template#165.
 ## Workflow
 
 1. Check whether `.github/.jira_sync_config.yaml` exists. If so, keep user-specific values (project key, mappings) and only align it with the template.
-2. Copy `assets/jira_sync_config.template.yaml` to `.github/.jira_sync_config.yaml` when missing.
+2. When `.github/.jira_sync_config.yaml` is missing, create it from the charm template [`templates/charm/template/.github/.jira_sync_config.yaml`](../../templates/charm/template/.github/.jira_sync_config.yaml), or from <https://raw.githubusercontent.com/canonical/platform-engineering/main/templates/charm/template/.github/.jira_sync_config.yaml> when the skill is used outside this repository.
 3. Ask the user which Jira component(s) the repository belongs to and set `settings.components` (a list, case-sensitive names). Valid names are listed in `VALID_COMPONENTS` of [`validators/validate-jira-sync-config/src/validate_jira_sync_config/config.py`](../../validators/validate-jira-sync-config/src/validate_jira_sync_config/config.py). Change `jira_project_key` only if the project is not `ISD`.
 4. Validate:
 
