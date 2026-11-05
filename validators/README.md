@@ -20,3 +20,4 @@ To add a validator, create the folder and add it to `members` in `validators/pyp
 | Validator | Description |
 | --- | --- |
 | [`terraform-compliance`](terraform-compliance/) | Terraform modules against CC008 |
+| [`validate-jira-sync-config`](validate-jira-sync-config/) | gh-jira-sync-bot config against the Platform Engineering charm template conventions |
