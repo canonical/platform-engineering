@@ -9,7 +9,7 @@ requires-python = ">=3.11"
 package = false
 
 [tool.uv.workspace]
-members = ["terraform-compliance"]
+members = ["terraform-compliance", "validate-jira-sync-config"]
 
 [dependency-groups]
 dev = ["pytest", "ruff", "codespell", "yamllint"]
