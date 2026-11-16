@@ -35,6 +35,9 @@ the repository compliant with the [`paas-charm-v2` validator](../../validators/p
 
 Background and the full list of breaking changes: [`kb/12factor-v2-upgrade.md`](../../kb/12factor-v2-upgrade.md).
 
+To run this migration across many repositories at once, launch the CharmKeeper campaign recipe
+[`charmkeeper.yaml`](charmkeeper.yaml), which sits next to this file and installs this skill.
+
 ## Before starting
 
 Confirm with the user, and stop if the answer rules the upgrade out:
