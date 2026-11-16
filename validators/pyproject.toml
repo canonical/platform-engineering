@@ -9,7 +9,7 @@ requires-python = ">=3.11"
 package = false
 
 [tool.uv.workspace]
-members = ["terraform-compliance"]
+members = ["paas-charm-v2", "terraform-compliance"]
 
 [dependency-groups]
 dev = ["pytest", "ruff", "codespell", "yamllint"]

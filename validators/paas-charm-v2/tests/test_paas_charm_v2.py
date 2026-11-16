@@ -1,0 +1,384 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+"""Tests for the paas-charm 2.0 compliance checker."""
+
+import textwrap
+from pathlib import Path
+
+import pytest
+from paas_charm_v2.check import (
+    _pin_allows_only_v2,
+    build_report,
+    check_charm_base,
+    check_rock_base,
+    check_uv_plugin,
+    main,
+)
+from paas_charm_v2.paas_config import check_paas_config
+from paas_charm_v2.project import discover
+
+COMPLIANT_CHARMCRAFT = """\
+name: flask-k8s
+type: charm
+base: ubuntu@26.04
+extensions:
+  - flask-framework
+platforms:
+  amd64:
+config:
+  options:
+    app-secret-key:
+      type: secret
+    log-level:
+      type: string
+containers:
+  app:
+    resource: app-image
+peers:
+  peers:
+    interface: peers
+requires:
+  postgresql:
+    interface: postgresql_client
+    optional: true
+resources:
+  app-image:
+    type: oci-image
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-snaps:
+      - astral-uv
+"""
+
+COMPLIANT_PYPROJECT = """\
+[project]
+name = "flask-k8s"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["paas-charm>=2.0.dev1,<3"]
+"""
+
+COMPLIANT_ROCKCRAFT = """\
+name: flask-app
+base: ubuntu@26.04
+platforms:
+  amd64:
+extensions:
+  - flask-framework
+"""
+
+
+def write_charm(root: Path, charmcraft: str = COMPLIANT_CHARMCRAFT, **files: str) -> Path:
+    """Create a charm project directory and return it."""
+    directory = root / "charm"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "charmcraft.yaml").write_text(charmcraft)
+    (directory / "pyproject.toml").write_text(files.pop("pyproject", COMPLIANT_PYPROJECT))
+    (directory / "uv.lock").write_text("")
+    for name, content in files.items():
+        path = directory / name.replace("__", "/").replace("_py", ".py")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+    return directory
+
+
+def write_rock(root: Path, rockcraft: str = COMPLIANT_ROCKCRAFT) -> Path:
+    """Create a rock project directory and return it."""
+    (root / "rockcraft.yaml").write_text(rockcraft)
+    return root
+
+
+def test_compliant_project_has_no_violations(tmp_path: Path) -> None:
+    write_charm(tmp_path)
+    write_rock(tmp_path)
+    report = build_report(discover(tmp_path))
+    assert report.violations == []
+    assert report.framework == "flask"
+
+
+def test_legacy_base_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path, COMPLIANT_CHARMCRAFT.replace("ubuntu@26.04", "ubuntu@24.04"))
+    project = discover(tmp_path)
+    violations = check_charm_base(project.charms[0], tmp_path)
+    assert violations and "ubuntu@26.04" in violations[0]
+
+
+def test_bases_key_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path, "name: flask-k8s\nbases:\n  - name: ubuntu\n    channel: '22.04'\n")
+    project = discover(tmp_path)
+    assert "legacy `bases` key" in check_charm_base(project.charms[0], tmp_path)[0]
+
+
+@pytest.mark.parametrize(
+    ("rockcraft", "expected"),
+    [
+        ("name: a\nbase: ubuntu@26.04\n", 0),
+        ("name: a\nbase: bare\nbuild-base: ubuntu@26.04\n", 0),
+        ("name: a\nbase: bare\nbuild-base: ubuntu@24.04\n", 1),
+        ("name: a\nbase: ubuntu@22.04\n", 1),
+    ],
+)
+def test_rock_base(tmp_path: Path, rockcraft: str, expected: int) -> None:
+    write_rock(tmp_path, rockcraft)
+    project = discover(tmp_path)
+    assert len(check_rock_base(project.rocks[0], tmp_path)) == expected
+
+
+def test_rock_part_separator_and_prime_entries(tmp_path: Path) -> None:
+    write_rock(
+        tmp_path,
+        textwrap.dedent("""\
+            name: a
+            base: ubuntu@26.04
+            extensions:
+              - flask-framework
+            parts:
+              flask-framework/dependencies:
+                plugin: nil
+              install-app:
+                prime:
+                  - flask/app/app.py
+            """),
+    )
+    report = build_report(discover(tmp_path))
+    violations = "\n".join(report.violations)
+    assert "flask-framework.dependencies" in violations
+    assert "must start with 'app'" in violations
+
+
+def test_charm_plugin_and_requirements_are_reported(tmp_path: Path) -> None:
+    directory = write_charm(
+        tmp_path,
+        COMPLIANT_CHARMCRAFT.replace("plugin: uv", "plugin: charm"),
+    )
+    (directory / "requirements.txt").write_text("paas-charm==1.11.3\n")
+    (directory / "uv.lock").unlink()
+    violations = "\n".join(check_uv_plugin(discover(tmp_path).charms[0], tmp_path))
+    assert "'charm' plugin" in violations
+    assert "requirements.txt" in violations
+    assert "uv.lock" in violations
+
+
+@pytest.mark.parametrize(
+    ("specifier", "valid"),
+    [
+        ("==2.0", True),
+        ("==2.0.*", True),
+        (">=2,<3", True),
+        (">=2.0.dev1,<3", True),
+        ("~=2.0", True),
+        ("==1.11.3", False),
+        (">=1,<3", False),
+        (">=2", False),
+        ("<3", False),
+        (">=2,<4", False),
+    ],
+)
+def test_pin_allows_only_v2(specifier: str, valid: bool) -> None:
+    assert _pin_allows_only_v2(specifier) is valid
+
+
+def test_unpinned_paas_charm_is_reported(tmp_path: Path) -> None:
+    write_charm(
+        tmp_path,
+        pyproject=COMPLIANT_PYPROJECT.replace('"paas-charm>=2.0.dev1,<3"', '"paas-charm"'),
+    )
+    report = build_report(discover(tmp_path))
+    assert any("unpinned" in violation for violation in report.violations)
+
+
+def test_old_python_requirement_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path, pyproject=COMPLIANT_PYPROJECT.replace(">=3.12", ">=3.10"))
+    report = build_report(discover(tmp_path))
+    assert any("requires-python" in violation for violation in report.violations)
+
+
+def test_flask_container_rename_is_reported(tmp_path: Path) -> None:
+    write_charm(
+        tmp_path,
+        COMPLIANT_CHARMCRAFT.replace(
+            "  app:\n    resource: app-image",
+            "  flask-app:\n    resource: flask-app-image",
+        ).replace(
+            "  app-image:\n    type: oci-image",
+            "  flask-app-image:\n    type: oci-image",
+        ),
+    )
+    report = build_report(discover(tmp_path))
+    violations = "\n".join(report.violations)
+    assert "expected 'app'" in violations
+    assert "flask-app-image" in violations
+
+
+def test_retired_contract_is_reported(tmp_path: Path) -> None:
+    charmcraft = COMPLIANT_CHARMCRAFT.replace(
+        "peers:\n  peers:\n    interface: peers",
+        "peers:\n  secret-storage:\n    interface: secret-storage",
+    ).replace(
+        "    log-level:\n      type: string",
+        "    flask-secret-key:\n      type: string\n    webserver-port:\n      type: int",
+    )
+    write_charm(tmp_path, charmcraft)
+    report = build_report(discover(tmp_path))
+    violations = "\n".join(report.violations)
+    assert "secret-storage" in violations
+    assert "flask-secret-key" in violations
+    assert "webserver-port" in violations
+
+
+def test_hand_coded_relation_is_reported(tmp_path: Path) -> None:
+    charmcraft = COMPLIANT_CHARMCRAFT.replace(
+        "requires:\n",
+        "requires:\n  temporal-host-info:\n    interface: temporal-host-info\n"
+        "    optional: true\n",
+    )
+    write_charm(
+        tmp_path,
+        charmcraft,
+        src__charm_py=textwrap.dedent("""\
+            class FlaskCharm(paas_charm.flask.Charm):
+                def __init__(self, *args):
+                    super().__init__(*args)
+                    self.framework.observe(
+                        self.on["temporal-host-info"].relation_changed, self._on_changed
+                    )
+            """),
+    )
+    report = build_report(discover(tmp_path))
+    violations = "\n".join(report.violations)
+    assert "CustomRelation" in violations
+    assert "temporal-host-info" in violations
+
+
+def test_registered_custom_relation_passes(tmp_path: Path) -> None:
+    charmcraft = COMPLIANT_CHARMCRAFT.replace(
+        "requires:\n",
+        "requires:\n  temporal-host-info:\n    interface: temporal-host-info\n"
+        "    optional: true\n",
+    )
+    write_charm(
+        tmp_path,
+        charmcraft,
+        src__charm_py=textwrap.dedent("""\
+            class TemporalRelation(CustomRelation):
+                relation_name = "temporal-host-info"
+
+
+            class FlaskCharm(paas_charm.flask.Charm):
+                custom_relations = [TemporalRelation]
+            """),
+    )
+    report = build_report(discover(tmp_path))
+    assert report.violations == []
+
+
+def test_undeclared_custom_relation_is_reported(tmp_path: Path) -> None:
+    write_charm(
+        tmp_path,
+        src__charm_py=(
+            'class R(CustomRelation):\n    relation_name = "temporal"\n\ncustom_relations = [R]\n'
+        ),
+    )
+    report = build_report(discover(tmp_path))
+    assert any("not declared under requires" in violation for violation in report.violations)
+
+
+def test_paas_app_charmer_import_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path, src__charm_py="import paas_app_charmer.flask\n")
+    report = build_report(discover(tmp_path))
+    assert any("paas_app_charmer" in violation for violation in report.violations)
+
+
+def test_valid_paas_config_passes() -> None:
+    config = {
+        "port": 8080,
+        "metrics-port": 9102,
+        "metrics-path": "/metrics",
+        "framework_logging_format": "json",
+        "prometheus": {
+            "scrape_configs": [{"job_name": "extra", "static_configs": [{"targets": ["*:8081"]}]}]
+        },
+        "config": {"options": {"log-level": {"env-var": "LOG_LEVEL"}}},
+    }
+    assert check_paas_config(config, "flask", frozenset({"log-level"})) == []
+
+
+@pytest.mark.parametrize(
+    ("config", "framework", "expected"),
+    [
+        ({"ports": 80}, "flask", "unknown top-level field"),
+        ({"port": 0}, "flask", "between 1 and 65535"),
+        ({"metrics-path": "metrics"}, "flask", "slash-prefixed"),
+        ({"framework_logging_format": "text"}, "flask", "must be json"),
+        ({"framework_logging_format": "json"}, "go", "not supported"),
+        ({"prometheus": {"scrape_configs": [{}]}}, "flask", "job_name is required"),
+    ],
+)
+def test_invalid_paas_config(config: dict, framework: str, expected: str) -> None:
+    assert any(expected in violation for violation in check_paas_config(config, framework))
+
+
+def test_paas_config_mapping_rules() -> None:
+    config = {
+        "config": {
+            "options": {
+                "a": {"env-var": "X", "secret-env-vars": {"k": "Y"}},
+                "b": {"env-var": "Z"},
+                "c": {"env-var": "Z"},
+            }
+        }
+    }
+    violations = "\n".join(check_paas_config(config, "flask", frozenset({"a", "b", "c"})))
+    assert "exactly one of env-var or secret-env-vars" in violations
+    assert "duplicate environment variable destination" in violations
+
+
+def test_paas_config_unknown_source_option() -> None:
+    config = {"config": {"options": {"missing": {"env-var": "X"}}}}
+    violations = check_paas_config(config, "flask", frozenset({"log-level"}))
+    assert any("does not match a config option" in violation for violation in violations)
+
+
+def test_invalid_yaml_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path, "name: [unclosed\n")
+    report = build_report(discover(tmp_path))
+    assert any("invalid YAML" in violation for violation in report.violations)
+
+
+def test_cli_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    assert main(["--list-checks"]) == 0
+    assert main([]) == 2
+    write_charm(tmp_path)
+    write_rock(tmp_path)
+    assert main([str(tmp_path), "--verbose"]) == 0
+    write_charm(tmp_path, COMPLIANT_CHARMCRAFT.replace("ubuntu@26.04", "ubuntu@22.04"))
+    assert main([str(tmp_path)]) == 1
+    assert "charm-base" in capsys.readouterr().out
+
+
+def test_requirements_txt_pin_is_reported(tmp_path: Path) -> None:
+    directory = write_charm(tmp_path)
+    (directory / "pyproject.toml").unlink()
+    (directory / "requirements.txt").write_text("paas-charm==1.11.3\n")
+    report = build_report(discover(tmp_path))
+    assert any("pinned in requirements.txt" in violation for violation in report.violations)
+
+
+def test_multiline_relation_observe_is_reported(tmp_path: Path) -> None:
+    write_charm(
+        tmp_path,
+        src__charm_py=textwrap.dedent("""\
+            class Charm(paas_charm.flask.Charm):
+                def __init__(self, *args):
+                    super().__init__(*args)
+                    self.framework.observe(
+                        self.on["temporal-host-info"].relation_changed,
+                        self._on_changed,
+                    )
+            """),
+    )
+    report = build_report(discover(tmp_path))
+    assert any("relation event observed directly" in v for v in report.violations)
