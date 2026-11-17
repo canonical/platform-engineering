@@ -458,17 +458,28 @@ def test_charm_dir_uv_lock_ignore_patterns(tmp_path: Path, ignore: str) -> None:
     assert _license_violations(tmp_path) == ""
 
 
-def test_root_uv_lock_is_found_and_checked(tmp_path: Path) -> None:
+def test_charm_in_repo_root_uses_root_uv_lock(tmp_path: Path) -> None:
+    (tmp_path / "charmcraft.yaml").write_text(COMPLIANT_CHARMCRAFT)
+    (tmp_path / "pyproject.toml").write_text(COMPLIANT_PYPROJECT)
+    (tmp_path / "uv.lock").write_text("")
+    write_rock(tmp_path)
+    (tmp_path / ".licenserc.yaml").write_text("header:\n  paths-ignore:\n    - 'LICENSE'\n")
+    assert "'uv.lock'" in _license_violations(tmp_path)
+    (tmp_path / ".licenserc.yaml").write_text("header:\n  paths-ignore:\n    - 'uv.lock'\n")
+    assert _license_violations(tmp_path) == ""
+
+
+def test_uv_lock_elsewhere_is_not_the_charm_lock(tmp_path: Path) -> None:
     directory = write_charm(tmp_path)
     (directory / "uv.lock").unlink()
     (tmp_path / "uv.lock").write_text("")
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools" / "uv.lock").write_text("")
     write_rock(tmp_path)
-    (tmp_path / ".licenserc.yaml").write_text("header:\n  paths-ignore:\n    - 'charm/uv.lock'\n")
+    (tmp_path / ".licenserc.yaml").write_text("header:\n  paths-ignore:\n    - 'LICENSE'\n")
     violations = _license_violations(tmp_path)
-    assert "'uv.lock'" in violations
-    assert "missing uv.lock" not in violations
-    (tmp_path / ".licenserc.yaml").write_text("header:\n  paths-ignore:\n    - 'uv.lock'\n")
-    assert _license_violations(tmp_path) == ""
+    assert "missing uv.lock" in violations
+    assert ".licenserc.yaml" not in violations
 
 
 def test_missing_uv_lock_everywhere_is_reported(tmp_path: Path) -> None:

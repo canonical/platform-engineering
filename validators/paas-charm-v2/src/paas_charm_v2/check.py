@@ -105,17 +105,13 @@ def _relative(path: Path, root: Path) -> str:
         return str(path)
 
 
-def find_uv_lock(charm: CharmProject, root: Path) -> Path | None:
-    """Return the ``uv.lock`` used by the charm: in its directory or any parent up to ``root``."""
-    directory = charm.directory.resolve()
-    top = root.resolve()
-    while True:
-        candidate = directory / "uv.lock"
-        if candidate.is_file():
-            return candidate
-        if directory == top or top not in directory.parents:
-            return None
-        directory = directory.parent
+def find_uv_lock(charm: CharmProject) -> Path | None:
+    """Return the charm's ``uv.lock``, which must sit next to its ``charmcraft.yaml``.
+
+    Other ``uv.lock`` files in the repository belong to other projects and are ignored.
+    """
+    candidate = charm.directory / "uv.lock"
+    return candidate if candidate.is_file() else None
 
 
 def check_charm_base(charm: CharmProject, root: Path) -> list[str]:
@@ -176,7 +172,7 @@ def check_uv_plugin(charm: CharmProject, root: Path) -> list[str]:
             f"{_relative(charm.directory / 'requirements.txt', root)}: delete it; "
             "dependencies are declared in pyproject.toml"
         )
-    if find_uv_lock(charm, root) is None:
+    if find_uv_lock(charm) is None:
         violations.append(
             f"{_relative(charm.directory, root)}: missing uv.lock; generate it with "
             "`uv lock` and commit it (charmcraft pack fails without it)"
@@ -514,7 +510,7 @@ def check_repo_ci(project: Project) -> list[str]:
     ignored = _licenserc_ignored_patterns(root)
     reported: set[str] = set()
     for charm in project.charms:
-        lock_path = find_uv_lock(charm, root)
+        lock_path = find_uv_lock(charm)
         if lock_path is None:
             continue
         lock = _relative(lock_path, root)

@@ -142,7 +142,7 @@ extension provides both. Declaring `parts.charm` alongside an extension fails th
 uv lock
 ```
 
-- Keep CI working: `uv.lock` (in the charm directory or the repository root, wherever `uv lock` wrote it) has no license header and no comment style, so add its actual path to
+- Keep CI working: the charm's `uv.lock` (next to `charmcraft.yaml`; other `uv.lock` files in the repository are unrelated) has no license header and no comment style, so add its path to
   `header.paths-ignore` in `.licenserc.yaml` (skywalking-eyes fails otherwise), and replace every
   reference to the deleted `requirements.txt` in `tox.ini`, `pyproject.toml`, `Makefile` and
   workflows (for example `-r{toxinidir}/charm/requirements.txt`) with `paas-charm>=2.0.dev1,<3`
