@@ -204,6 +204,34 @@ def _reconcile(self, rerun_migrations: bool = False) -> None:
 Update unit tests that called the old hooks. Search `src/` for `super()._on_` and for any other
 private base-class members the charm relies on; confirm each still exists in `paas_charm`.
 
+`_reconcile` runs on every event, including early hooks such as `peers-relation-created` and
+`leader-elected`, so charm-specific work must be idempotent and must not assume the workload
+container is ready: guard on `self._container.can_connect()`.
+
+### Step 4c: Make charm code work as the non-root workload user
+
+The 2.0 workload container runs Pebble as the non-root `_daemon_` user (home
+`/var/lib/pebble/default`, writable app data in `/app-data`). Charm code that relied on root in
+1.x fails at runtime, not at lint or unit-test time, and puts the unit into error (for example
+`fork/exec /usr/bin/sh: operation not permitted`). Search `src/` for each of these and port it:
+
+- `container.exec(..., user="root", group="root")`: drop `user`/`group`, or avoid the command by
+  using `container.make_dir` and `container.push`.
+- `container.push(..., user=..., group=...)` and `chown` in shell commands: remove them. Files
+  are owned by the Pebble user, and `chown` to another user is not permitted.
+- Writes under root-owned paths such as `/etc/...` (for example `/etc/ssh/ssh_config.d/`) and
+  `/usr/...`: move them to a path the workload user owns, such as `~/.ssh/config` for SSH client
+  settings or `/app-data`, and set the file mode explicitly (`0o600` for config and keys).
+- Anything that assumed a specific user name or `chown`/`install -o` ownership.
+
+Unit tests with a mocked container cannot catch this, so verify on a real deployment. Deploy the
+packed charm with the relevant config set, then check the unit reaches `active` and inspect the
+result in the workload container:
+
+```shell
+kubectl exec -n <model> <app>-0 -c app -- ls -la <path>
+```
+
 ### Step 5: Move hand-coded integrations into custom relations
 
 Any author-owned relation that is observed directly in `src/charm.py` — `self.framework.observe`
@@ -298,6 +326,7 @@ Close with a summary covering:
 - validator status before and after, by check slug;
 - rocks and charms migrated, with their new bases;
 - local lint, unit and license-header results;
+- runtime checks on a real deployment: unit reaches `active`, and files the charm writes exist in the workload container with the expected owner and mode;
 - renames applied outside the charm (Terraform, CI, bundles, docs);
 - integrations converted to `CustomRelation`, and their `optional` flag;
 - `paas-config.yaml` keys adopted and what they replaced;
