@@ -382,3 +382,97 @@ def test_multiline_relation_observe_is_reported(tmp_path: Path) -> None:
     )
     report = build_report(discover(tmp_path))
     assert any("relation event observed directly" in v for v in report.violations)
+
+
+def test_removed_base_hook_override_is_reported(tmp_path: Path) -> None:
+    write_charm(
+        tmp_path,
+        src__charm_py=textwrap.dedent("""\
+            class FlaskCharm(paas_charm.flask.Charm):
+                def _on_config_changed(self, event):
+                    super()._on_config_changed(event)
+            """),
+    )
+    write_rock(tmp_path)
+    violations = "\n".join(build_report(discover(tmp_path)).violations)
+    assert "_reconcile" in violations
+    assert "_on_config_changed" in violations
+
+
+def test_reconcile_override_passes(tmp_path: Path) -> None:
+    write_charm(
+        tmp_path,
+        src__charm_py=textwrap.dedent("""\
+            class FlaskCharm(paas_charm.flask.Charm):
+                def _reconcile(self, rerun_migrations=False):
+                    super()._reconcile(rerun_migrations)
+            """),
+    )
+    write_rock(tmp_path)
+    assert build_report(discover(tmp_path)).violations == []
+
+
+def test_uv_lock_must_be_ignored_by_license_check(tmp_path: Path) -> None:
+    write_charm(tmp_path)
+    write_rock(tmp_path)
+    (tmp_path / ".licenserc.yaml").write_text("header:\n  paths-ignore:\n    - 'LICENSE'\n")
+    assert "charm/uv.lock" in "\n".join(build_report(discover(tmp_path)).violations)
+    (tmp_path / ".licenserc.yaml").write_text(
+        "header:\n  paths-ignore:\n    - 'LICENSE'\n    - 'charm/uv.lock'\n"
+    )
+    assert build_report(discover(tmp_path)).violations == []
+
+
+def test_removed_requirements_txt_reference_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path)
+    write_rock(tmp_path)
+    (tmp_path / "tox.ini").write_text("[testenv]\ndeps =\n    -r{toxinidir}/charm/requirements.txt\n")
+    violations = "\n".join(build_report(discover(tmp_path)).violations)
+    assert "tox.ini" in violations
+
+
+def test_gunicorn_constraints_override_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path)
+    rock = COMPLIANT_ROCKCRAFT + (
+        "parts:\n  flask-framework.dependencies:\n    override-build: |\n"
+        "      craftctl default\n"
+    )
+    write_rock(tmp_path, rock)
+    assert ".gunicorn-constraints.txt" in "\n".join(build_report(discover(tmp_path)).violations)
+    write_rock(tmp_path, rock.replace("craftctl default", "echo x > .gunicorn-constraints.txt"))
+    assert build_report(discover(tmp_path)).violations == []
+
+
+def _license_violations(tmp_path: Path) -> str:
+    return "\n".join(build_report(discover(tmp_path)).violations)
+
+
+@pytest.mark.parametrize(
+    "ignore",
+    ["charm/uv.lock", "**/uv.lock", "uv.lock", "charm/*.lock", "charm", "charm/**"],
+)
+def test_charm_dir_uv_lock_ignore_patterns(tmp_path: Path, ignore: str) -> None:
+    write_charm(tmp_path)
+    write_rock(tmp_path)
+    (tmp_path / ".licenserc.yaml").write_text(f"header:\n  paths-ignore:\n    - '{ignore}'\n")
+    assert _license_violations(tmp_path) == ""
+
+
+def test_root_uv_lock_is_found_and_checked(tmp_path: Path) -> None:
+    directory = write_charm(tmp_path)
+    (directory / "uv.lock").unlink()
+    (tmp_path / "uv.lock").write_text("")
+    write_rock(tmp_path)
+    (tmp_path / ".licenserc.yaml").write_text("header:\n  paths-ignore:\n    - 'charm/uv.lock'\n")
+    violations = _license_violations(tmp_path)
+    assert "'uv.lock'" in violations
+    assert "missing uv.lock" not in violations
+    (tmp_path / ".licenserc.yaml").write_text("header:\n  paths-ignore:\n    - 'uv.lock'\n")
+    assert _license_violations(tmp_path) == ""
+
+
+def test_missing_uv_lock_everywhere_is_reported(tmp_path: Path) -> None:
+    directory = write_charm(tmp_path)
+    (directory / "uv.lock").unlink()
+    write_rock(tmp_path)
+    assert "missing uv.lock" in _license_violations(tmp_path)

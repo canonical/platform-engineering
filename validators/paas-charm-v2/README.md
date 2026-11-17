@@ -28,13 +28,15 @@ Flags: `--verbose`, `--check <slug>`, `--list-checks`.
 | Slug | Checks |
 | --- | --- |
 | `charm-base` | `charmcraft.yaml` declares `base: ubuntu@26.04` and not the legacy `bases` key. |
-| `rock-base` | `rockcraft.yaml` uses `base: ubuntu@26.04`, or `base: bare` with `build-base: ubuntu@26.04`. Extension part names use `.` instead of `/`, `install-app` prime entries start with `app`, and no `/flask`, `/django` or `/app/state` paths remain. |
+| `rock-base` | `rockcraft.yaml` uses `base: ubuntu@26.04`, or `base: bare` with `build-base: ubuntu@26.04`. Extension part names use `.` instead of `/`, `install-app` prime entries start with `app`, and no `/flask`, `/django` or `/app/state` paths remain. A Flask or Django `<framework>-framework.dependencies` part that sets its own `override-build` must still write `.gunicorn-constraints.txt`, because the override replaces the extension's. |
 | `uv-plugin` | `parts.charm` uses `plugin: uv` with the `astral-uv` build snap and no `charm-strict-dependencies`; `pyproject.toml` and `uv.lock` exist and `requirements.txt` is gone. |
 | `paas-charm-pin` | `project.dependencies` pins `paas-charm` to 2.x only (`==2.0`, `==2.0.*`, `>=2,<3`, `>=2.0.dev1,<3`), and `requires-python` is at least 3.12. |
 | `workload-container` | The workload container is `app` with the `app-image` resource (`flask-app`/`django-app` were renamed). |
 | `paas-config` | `paas-config.yaml` parses and matches the 2.0 schema: known top-level keys, valid `port`/`metrics-port`/`metrics-path`, supported `framework_logging_format`, well-formed `prometheus.scrape_configs`, and `config.options` mappings that name declared options, use exactly one of `env-var`/`secret-env-vars` and have unique destinations. |
 | `custom-relations` | Non-built-in `requires` endpoints are backed by a `paas_charm.relations.CustomRelation`, every `CustomRelation` is declared under `requires`, relation events are not observed directly in `src/`, no `paas_app_charmer` imports remain, and `redis` is replaced by `valkey`. |
 | `charm-contract` | The `peers` relation replaces `secret-storage`, `app-secret-key` is `type: secret`, retired options (`app-secret-key-id`, `flask-secret-key`, `django-secret-key`, `app-port`, `webserver-port`, `metrics-port`, `metrics-path`) are gone, and the deprecated `loki_push_api` v0 and `hydra` libraries are not fetched. |
+| `charm-hooks` | The charm does not call `super()._on_config_changed` or `super()._on_pebble_ready`, or define those methods without observing them. `paas-charm` 2.0 removed them (pylint `no-member`, and the override silently never runs); override `_reconcile(self, rerun_migrations=False)` instead. |
+| `repo-ci` | CI configuration still works after the migration: `.licenserc.yaml` `header.paths-ignore` covers the generated `uv.lock` (located in the charm directory or any parent up to the repository root, then matched as a glob), and `tox.ini`, `pyproject.toml`, `Makefile`, `noxfile.py` and `justfile` do not reference the deleted `requirements.txt`. |
 
 ## Known deviations
 

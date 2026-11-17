@@ -92,6 +92,10 @@ For each `rockcraft.yaml`:
 - Point writable application data at `/app-data`, owned by `_daemon_`.
 - For Flask and Django, expect `gunicorn.conf.py` under `/var/lib/gunicorn`.
 - Bump `version` so Kubernetes does not serve a cached image.
+- If a Flask or Django rock overrides `override-build` on `<framework>-framework.dependencies`,
+  the override replaces the extension's, which writes `.gunicorn-constraints.txt`. Add
+  `printf '%s\n' 'gunicorn~=26.0' > .gunicorn-constraints.txt` before `craftctl default`, or
+  `rockcraft pack` fails with "Could not open requirements file: .gunicorn-constraints.txt".
 
 Verify the expanded project before packing:
 
@@ -138,6 +142,12 @@ extension provides both. Declaring `parts.charm` alongside an extension fails th
 uv lock
 ```
 
+- Keep CI working: `uv.lock` (in the charm directory or the repository root, wherever `uv lock` wrote it) has no license header and no comment style, so add its actual path to
+  `header.paths-ignore` in `.licenserc.yaml` (skywalking-eyes fails otherwise), and replace every
+  reference to the deleted `requirements.txt` in `tox.ini`, `pyproject.toml`, `Makefile` and
+  workflows (for example `-r{toxinidir}/charm/requirements.txt`) with `paas-charm>=2.0.dev1,<3`
+  or the dependency group.
+
 ### Step 4: Apply the contract renames
 
 | 1.x | 2.0 |
@@ -163,6 +173,27 @@ juju add-secret my-app-secret-key value=<secret-string>
 juju grant-secret my-app-secret-key <app>
 juju config <app> app-secret-key=secret:<secret id>
 ```
+
+### Step 4b: Port overridden base-class hooks
+
+`paas-charm` 2.0 removed `_on_config_changed` and `_on_pebble_ready` from the base charm. Every
+event now routes through `_reconcile(self, rerun_migrations: bool = False)`. A 1.x override such
+as `def _on_config_changed(...): ...; super()._on_config_changed(event)` fails pylint
+(`E1101 no-member`) and, worse, silently never runs. Move the logic into:
+
+```python
+def _reconcile(self, rerun_migrations: bool = False) -> None:
+    """Do the charm-specific work, then reconcile.
+
+    Args:
+        rerun_migrations: whether it is necessary to run the migrations again.
+    """
+    self._my_setup()
+    super()._reconcile(rerun_migrations)
+```
+
+Update unit tests that called the old hooks. Search `src/` for `super()._on_` and for any other
+private base-class members the charm relies on; confirm each still exists in `paas_charm`.
 
 ### Step 5: Move hand-coded integrations into custom relations
 
@@ -206,6 +237,11 @@ back to framework defaults.
 
 ### Step 7: Validate, build and hand over
 
+Run the repository's own CI checks locally before opening a PR; the validator does not replace
+them. At minimum `tox run -e lint,unit` (pylint, flake8, mypy, black, isort, unit tests) and the
+license header check configured in `.licenserc.yaml`. Fix findings in the migrated code rather
+than suppressing them.
+
 ```shell
 uv lock
 uvx --from "git+https://github.com/canonical/platform-engineering@paas-charm-v2/v<version>#subdirectory=validators/paas-charm-v2" \
@@ -231,6 +267,7 @@ Close with a summary covering:
 
 - validator status before and after, by check slug;
 - rocks and charms migrated, with their new bases;
+- local lint, unit and license-header results;
 - renames applied outside the charm (Terraform, CI, bundles, docs);
 - integrations converted to `CustomRelation`, and their `optional` flag;
 - `paas-config.yaml` keys adopted and what they replaced;
