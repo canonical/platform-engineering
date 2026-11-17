@@ -1,0 +1,7 @@
+name: dev
+base: ubuntu@24.04
+sdks:
+  - name: uv
+  - name: just
+  - name: opencode
+    channel: 2/stable

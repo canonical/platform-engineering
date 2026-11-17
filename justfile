@@ -10,7 +10,7 @@ lint:
     {{uv}} ruff format --check .
     {{uv}} codespell
     {{uv}} yamllint .
-    npx --yes markdownlint-cli2 "**/*.md" "#node_modules" "#.venv" "#validators/.venv" "#templates/*/template"
+    npx --yes markdownlint-cli2 "**/*.md" "#node_modules" "#.venv" "#validators/.venv" "#**/.kb" "#templates/*/template"
 
 # Auto-format Python
 fmt:
