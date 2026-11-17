@@ -37,6 +37,7 @@ Flags: `--verbose`, `--check <slug>`, `--list-checks`.
 | `charm-contract` | The `peers` relation replaces `secret-storage`, `app-secret-key` is `type: secret`, retired options (`app-secret-key-id`, `flask-secret-key`, `django-secret-key`, `app-port`, `webserver-port`, `metrics-port`, `metrics-path`) are gone, and the deprecated `loki_push_api` v0 and `hydra` libraries are not fetched. |
 | `charm-hooks` | The charm does not call `super()._on_config_changed` or `super()._on_pebble_ready`, or define those methods without observing them. `paas-charm` 2.0 removed them (pylint `no-member`, and the override silently never runs); override `_reconcile(self, rerun_migrations=False)` instead. |
 | `repo-ci` | CI configuration still works after the migration: `.licenserc.yaml` `header.paths-ignore` covers the generated `uv.lock` (the lock next to the charm's `charmcraft.yaml`, matched as a glob; `uv.lock` files elsewhere in the repository belong to other projects and are ignored), and `tox.ini`, `pyproject.toml`, `Makefile`, `noxfile.py` and `justfile` do not reference the deleted `requirements.txt`. |
+| `upgrade-docs` | Flask and Django only. A Markdown upgrade guide mentions Juju bug [LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955) and `juju remove-application` (the container rename keeps the old container alive and fails `juju refresh`, so the charm must be removed and redeployed), and the changelog or release notes mention the same bug. |
 
 ## Known deviations
 

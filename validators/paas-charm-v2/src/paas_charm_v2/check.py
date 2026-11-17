@@ -18,6 +18,7 @@ from paas_charm_v2.paas_config import check_paas_config
 from paas_charm_v2.project import (
     ProjectError,
     RENAMED_CONTAINER_FRAMEWORKS,
+    SKIPPED_DIRECTORIES,
     CharmProject,
     Project,
     RockProject,
@@ -38,7 +39,11 @@ CHECK_SLUGS = (
     "charm-contract",
     "charm-hooks",
     "repo-ci",
+    "upgrade-docs",
 )
+
+JUJU_CONTAINER_RENAME_BUG = "1991955"
+JUJU_CONTAINER_RENAME_BUG_URL = f"https://bugs.launchpad.net/juju/+bug/{JUJU_CONTAINER_RENAME_BUG}"
 
 # Relations handled by paas-charm itself; anything else under `requires` is the
 # charm author's own integration and belongs in a CustomRelation subclass.
@@ -536,6 +541,49 @@ def check_repo_ci(project: Project) -> list[str]:
     return violations
 
 
+def _markdown_files(root: Path) -> list[Path]:
+    """Return the Markdown files under ``root``, skipping build and VCS directories."""
+    return [
+        path
+        for path in sorted(root.rglob("*.md"))
+        if path.is_file()
+        and not any(part in SKIPPED_DIRECTORIES for part in path.relative_to(root).parts)
+    ]
+
+
+def check_upgrade_docs(project: Project) -> list[str]:
+    """Return violations when the Juju container rename bug is not documented.
+
+    Flask and Django charms rename their workload container, and Juju bug LP#1991955 keeps the
+    old container alive and fails ``juju refresh``. The upgrade guide must tell operators to
+    remove and redeploy the charm, and the changelog must record it.
+    """
+    guide_found = False
+    changelog_found = False
+    for path in _markdown_files(project.root):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if JUJU_CONTAINER_RENAME_BUG not in text:
+            continue
+        relative = _relative(path, project.root).lower()
+        if "changelog" in relative or "release-notes" in relative:
+            changelog_found = True
+        elif "remove-application" in text:
+            guide_found = True
+    violations: list[str] = []
+    if not guide_found:
+        violations.append(
+            "upgrade guide: document that the container rename breaks 'juju refresh' "
+            f"(Juju bug LP#{JUJU_CONTAINER_RENAME_BUG}, {JUJU_CONTAINER_RENAME_BUG_URL}) and "
+            "that the charm must be removed with 'juju remove-application' and redeployed"
+        )
+    if not changelog_found:
+        violations.append(
+            "changelog: record that the upgrade needs a remove and redeploy because of Juju "
+            f"bug LP#{JUJU_CONTAINER_RENAME_BUG} ({JUJU_CONTAINER_RENAME_BUG_URL})"
+        )
+    return violations
+
+
 def build_report(project: Project) -> ProjectReport:
     """Run every check against a discovered project."""
     root = project.root
@@ -559,6 +607,7 @@ def build_report(project: Project) -> ProjectReport:
         add("charm-contract", "Charm contract", [], "no charmcraft.yaml found")
         add("charm-hooks", "Charm hooks", [], "no charmcraft.yaml found")
         add("repo-ci", "Repository CI", [], "no charmcraft.yaml found")
+        add("upgrade-docs", "Upgrade documentation", [], "no charmcraft.yaml found")
     else:
         add(
             "charm-hooks",
@@ -566,6 +615,17 @@ def build_report(project: Project) -> ProjectReport:
             [v for c in project.charms for v in check_charm_hooks(c, root)],
         )
         add("repo-ci", "Repository CI", check_repo_ci(project))
+        if any(
+            (c.framework or framework) in RENAMED_CONTAINER_FRAMEWORKS for c in project.charms
+        ):
+            add("upgrade-docs", "Upgrade documentation", check_upgrade_docs(project))
+        else:
+            add(
+                "upgrade-docs",
+                "Upgrade documentation",
+                [],
+                "only Flask and Django rename the workload container",
+            )
         add(
             "charm-base",
             "Charm base",

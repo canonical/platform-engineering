@@ -131,5 +131,12 @@ extra:
     they cannot be automated: the application secret key is regenerated on refresh and
     signs existing users out unless a Juju user secret is supplied through
     `app-secret-key`; the refresh needs `--base ubuntu@26.04` and
-    `--resource app-image=<image>`; and any Redis data must be migrated to Valkey. Also
+    `--resource app-image=<image>`; and any Redis data must be migrated to Valkey.
+
+    For Flask and Django, the workload container rename cannot be applied with
+    `juju refresh` on Juju 3.x and 4.0 because of https://bugs.launchpad.net/juju/+bug/1991955:
+    the old container stays alive and the refresh fails. The charm must be removed with
+    `juju remove-application` and redeployed with the new version. Document this, with the bug
+    link, in the repository's upgrade how-to guide and in its changelog, and call it out in
+    the pull request body. The validator's `upgrade-docs` check enforces it. Also
     note anything you could not complete, such as a lock file you could not regenerate.

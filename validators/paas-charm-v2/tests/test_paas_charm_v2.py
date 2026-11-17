@@ -78,11 +78,24 @@ def write_charm(root: Path, charmcraft: str = COMPLIANT_CHARMCRAFT, **files: str
     (directory / "charmcraft.yaml").write_text(charmcraft)
     (directory / "pyproject.toml").write_text(files.pop("pyproject", COMPLIANT_PYPROJECT))
     (directory / "uv.lock").write_text("")
+    write_upgrade_docs(root)
     for name, content in files.items():
         path = directory / name.replace("__", "/").replace("_py", ".py")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
     return directory
+
+
+def write_upgrade_docs(root: Path, guide: bool = True, changelog: bool = True) -> None:
+    """Create the upgrade guide and changelog documenting Juju bug LP#1991955."""
+    docs = root / "docs"
+    (docs / "how-to").mkdir(parents=True, exist_ok=True)
+    if guide:
+        (docs / "how-to" / "upgrade.md").write_text(
+            "Juju bug LP#1991955: run `juju remove-application` and redeploy.\n"
+        )
+    if changelog:
+        (docs / "changelog.md").write_text("Redeploy needed, see LP#1991955.\n")
 
 
 def write_rock(root: Path, rockcraft: str = COMPLIANT_ROCKCRAFT) -> Path:
@@ -462,6 +475,7 @@ def test_charm_in_repo_root_uses_root_uv_lock(tmp_path: Path) -> None:
     (tmp_path / "charmcraft.yaml").write_text(COMPLIANT_CHARMCRAFT)
     (tmp_path / "pyproject.toml").write_text(COMPLIANT_PYPROJECT)
     (tmp_path / "uv.lock").write_text("")
+    write_upgrade_docs(tmp_path)
     write_rock(tmp_path)
     (tmp_path / ".licenserc.yaml").write_text("header:\n  paths-ignore:\n    - 'LICENSE'\n")
     assert "'uv.lock'" in _license_violations(tmp_path)
@@ -487,3 +501,43 @@ def test_missing_uv_lock_everywhere_is_reported(tmp_path: Path) -> None:
     (directory / "uv.lock").unlink()
     write_rock(tmp_path)
     assert "missing uv.lock" in _license_violations(tmp_path)
+
+
+def test_flask_without_upgrade_docs_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path)
+    for doc in (tmp_path / "docs").rglob("*.md"):
+        doc.unlink()
+    violations = "\n".join(build_report(discover(tmp_path)).violations)
+    assert "upgrade guide" in violations
+    assert "changelog" in violations
+    assert "1991955" in violations
+
+
+def test_missing_changelog_entry_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path)
+    (tmp_path / "docs" / "changelog.md").write_text("nothing here\n")
+    violations = build_report(discover(tmp_path)).violations
+    assert len(violations) == 1 and violations[0].startswith("changelog")
+
+
+def test_guide_without_remove_instruction_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path)
+    (tmp_path / "docs" / "how-to" / "upgrade.md").write_text("See LP#1991955.\n")
+    violations = build_report(discover(tmp_path)).violations
+    assert len(violations) == 1 and violations[0].startswith("upgrade guide")
+
+
+def test_django_requires_upgrade_docs(tmp_path: Path) -> None:
+    write_charm(tmp_path, COMPLIANT_CHARMCRAFT.replace("flask-framework", "django-framework"))
+    (tmp_path / "docs" / "changelog.md").unlink()
+    report = build_report(discover(tmp_path))
+    assert any(v.startswith("changelog") for v in report.violations)
+
+
+def test_other_frameworks_skip_upgrade_docs(tmp_path: Path) -> None:
+    write_charm(tmp_path, COMPLIANT_CHARMCRAFT.replace("flask-framework", "fastapi-framework"))
+    for doc in (tmp_path / "docs").rglob("*.md"):
+        doc.unlink()
+    report = build_report(discover(tmp_path))
+    result = next(c for c in report.checks if c.slug == "upgrade-docs")
+    assert result.skip_reason and not result.violations

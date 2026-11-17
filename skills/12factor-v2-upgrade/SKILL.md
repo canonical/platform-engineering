@@ -48,7 +48,13 @@ Confirm with the user, and stop if the answer rules the upgrade out:
 2. **Can the deployment take a session reset?** The application secret key is regenerated on
    upgrade, signing out users of Flask, Django, FastAPI, ExpressJS and Spring Boot apps unless a
    Juju user secret is supplied.
-3. **Is the tooling available?** Rockcraft 1.21+, the `latest/edge` Charmcraft snap (stable
+3. **Flask or Django only: can the charm be removed and redeployed?** Their workload container
+   is renamed `flask-app`/`django-app` → `app`. Juju 3.x and 4.0 have a bug
+   ([LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955)) that keeps the old container
+   alive and fails `juju refresh`, so these charms cannot be refreshed in place: they must be
+   removed with `juju remove-application` and redeployed with the new version. Confirm the
+   deployment can lose and recreate its integrations, config and any stored data.
+4. **Is the tooling available?** Rockcraft 1.21+, the `latest/edge` Charmcraft snap (stable
    generates the old contract), `uv`, and Python 3.12+.
 
 ## Workflow
@@ -166,6 +172,9 @@ The resource rename is separate from the container rename: update `juju deploy -
 `juju refresh --resource`, Terraform, bundles, overlays, CI/CD and test fixtures. Search the
 whole repository for the old names, not just the charm directory.
 
+For Flask and Django the container rename also breaks `juju refresh` on Juju 3.x and 4.0
+([LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955)); see Step 7 and Step 8.
+
 Tell the user to reapply any existing secret key as a Juju secret:
 
 ```shell
@@ -251,15 +260,36 @@ CHARMCRAFT_ENABLE_EXPERIMENTAL_EXTENSIONS=1 charmcraft pack
 ```
 
 Then replace the old charm directory with `charm-26-04` in one move, and give the user the
-refresh command:
+upgrade command.
+
+**Flask and Django:** do not give a `juju refresh`. Because of
+[LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955), remove the application and deploy
+the new charm, then recreate integrations and config (including the `app-secret-key` secret):
+
+```shell
+juju remove-application <app>
+juju deploy ./<charm>_amd64.charm <app> --base ubuntu@26.04 \
+  --resource app-image=<registry>/<rock>:<version>
+```
+
+**Other frameworks:** refresh in place:
 
 ```shell
 juju refresh <app> --path ./<charm>_amd64.charm --base ubuntu@26.04 \
   --resource app-image=<registry>/<rock>:<version>
 ```
 
-`--base ubuntu@26.04` is required so Juju picks the new charm. After the refresh, check
-`juju status` and the ingress and observability relations.
+`--base ubuntu@26.04` is required so Juju picks the new charm. After the refresh or redeploy,
+check `juju status` and the ingress and observability relations.
+
+### Step 8: Document the upgrade (Flask and Django)
+
+Update the repository's documentation; the `upgrade-docs` check of the validator enforces it:
+
+- The upgrade how-to guide states that the container rename breaks `juju refresh` on Juju 3.x
+  and 4.0 ([LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955)), gives the
+  `juju remove-application` and redeploy steps, and mentions the application secret key reset.
+- The changelog records the same remove-and-redeploy requirement with the bug reference.
 
 ## Report
 
@@ -272,4 +302,5 @@ Close with a summary covering:
 - integrations converted to `CustomRelation`, and their `optional` flag;
 - `paas-config.yaml` keys adopted and what they replaced;
 - operator actions that remain: reapplying the `app-secret-key` secret, the session reset, the
-  `--resource app-image=` refresh, and any Redis-to-Valkey data migration.
+  `--resource app-image=` refresh (for Flask and Django, removing and redeploying the charm
+  because of LP#1991955), and any Redis-to-Valkey data migration.
