@@ -292,7 +292,19 @@ upgrade command.
 
 **Flask and Django:** do not give a `juju refresh`. Because of
 [LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955), remove the application and deploy
-the new charm, then recreate integrations and config (including the `app-secret-key` secret):
+the new charm, then recreate integrations and config (including the `app-secret-key` secret).
+
+Removing the application deletes its Juju configuration. Only when the charm declares config
+options that deployments set to non-default values (anything under `config.options` in
+`charmcraft.yaml` other than `app-secret-key`), tell the user to save those values before removal and restore them after redeployment, for example:
+
+```shell
+juju config <app> <option> > <option>.txt    # before removal, once per such option
+juju config <app> <option>=@<option>.txt     # after redeployment
+```
+
+Also have them note the integrations (`juju status <app> --relations`) so they can be recreated
+with `juju integrate`. If the charm has no such options and no integrations, omit this.
 
 ```shell
 juju remove-application <app>
@@ -317,6 +329,10 @@ Update the repository's documentation; the `upgrade-docs` check of the validator
 - The upgrade how-to guide states that the container rename breaks `juju refresh` on Juju 3.x
   and 4.0 ([LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955)), gives the
   `juju remove-application` and redeploy steps, and mentions the application secret key reset.
+- Only when the charm declares config options (see Step 7), the guide
+  also tells operators to save those option values and the integrations before removing the
+  application, and to restore them after redeploying. Name the actual options, for example
+  `files`. Skip this when the charm has no such options and no integrations.
 - The changelog records the same remove-and-redeploy requirement with the bug reference.
 
 ## Report
