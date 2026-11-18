@@ -123,7 +123,7 @@ CHARMCRAFT_ENABLE_EXPERIMENTAL_EXTENSIONS=1 \
 
 Keep every generated declaration: `base: ubuntu@26.04`, the platforms, `charm-user: non-root`,
 `parts.charm` with the `uv` plugin, the `app` container, the `app-image` resource, the `peers`
-peer relation, the secret-typed `app-secret-key` option, the `paas-charm>=2.0.dev1,<3` dependency
+peer relation, the secret-typed `app-secret-key` option, the `paas-charm>=2.0b1,<3` dependency
 and the `charmlibs` interface dependencies.
 
 Carry forward only application-specific work: charm source and tests, extra config options,
@@ -137,7 +137,7 @@ extension provides both. Declaring `parts.charm` alongside an extension fails th
 
 - Delete `requirements.txt`; its dependencies move to `project.dependencies` in `pyproject.toml`.
 - Set `requires-python = ">=3.12"`.
-- Pin `paas-charm` to 2.x only: `paas-charm>=2.0.dev1,<3` or `paas-charm==2.0.*`.
+- Pin `paas-charm` to 2.x only: `paas-charm>=2.0b1,<3`.
 - Remove pins of `ops`, `pydantic`, `jsonschema`, `cosl` and `dpcharmlibs-interfaces` unless the
   charm's own code needs them; `paas-charm` 2.0 pins its own versions and older pins make
   `uv lock` fail.
@@ -151,7 +151,7 @@ uv lock
 - Keep CI working: the charm's `uv.lock` (next to `charmcraft.yaml`; other `uv.lock` files in the repository are unrelated) has no license header and no comment style, so add its path to
   `header.paths-ignore` in `.licenserc.yaml` (skywalking-eyes fails otherwise), and replace every
   reference to the deleted `requirements.txt` in `tox.ini`, `pyproject.toml`, `Makefile` and
-  workflows (for example `-r{toxinidir}/charm/requirements.txt`) with `paas-charm>=2.0.dev1,<3`
+  workflows (for example `-r{toxinidir}/charm/requirements.txt`) with `paas-charm>=2.0b1,<3`
   or the dependency group.
 
 ### Step 4: Apply the contract renames

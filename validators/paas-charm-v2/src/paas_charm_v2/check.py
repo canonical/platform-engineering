@@ -203,7 +203,7 @@ def _pin_allows_only_v2(specifier: str) -> bool:
     """True if the specifier admits a 2.x release and excludes 3.0 and later.
 
     Accepts exact and wildcard pins such as ``==2.0`` or ``==2.0.*`` and bounded
-    ranges such as ``>=2,<3`` or ``>=2.0.dev1,<3``.
+    ranges such as ``>=2,<3`` or ``>=2.0b1,<3``.
     """
     has_lower_bound = False
     has_upper_bound = False
@@ -238,7 +238,7 @@ def check_paas_charm_pin(charm: CharmProject, root: Path) -> list[str]:
             if re.search(r"^\s*paas[-_]charm", text, re.MULTILINE):
                 return [
                     f"{_relative(path, root)}: paas-charm is pinned in requirements.txt; "
-                    'declare "paas-charm>=2.0.dev1,<3" in pyproject.toml instead'
+                    'declare "paas-charm>=2.0b1,<3" in pyproject.toml instead'
                 ]
         return []
     where = _relative(charm.directory / "pyproject.toml", root)
@@ -255,12 +255,12 @@ def check_paas_charm_pin(charm: CharmProject, root: Path) -> list[str]:
         if not specifier:
             violations.append(
                 f"{where}: paas-charm is unpinned; require 2.x "
-                '(for example "paas-charm>=2.0.dev1,<3")'
+                '(for example "paas-charm>=2.0b1,<3")'
             )
         elif not _pin_allows_only_v2(specifier):
             violations.append(
                 f"{where}: paas-charm pin {specifier!r} does not resolve to 2.x only "
-                '(use "==2.0.*" or ">=2.0.dev1,<3")'
+                '(use ">=2.0b1,<3")'
             )
     if found is None:
         violations.append(f"{where}: project.dependencies does not declare paas-charm")
@@ -535,7 +535,7 @@ def check_repo_ci(project: Project) -> list[str]:
             ):
                 violations.append(
                     f"{name}: references the removed {requirements}; install paas-charm "
-                    "(for example 'paas-charm>=2.0.dev1,<3') or the charm dependency group "
+                    "(for example 'paas-charm>=2.0b1,<3') or the charm dependency group "
                     "instead"
                 )
     return violations

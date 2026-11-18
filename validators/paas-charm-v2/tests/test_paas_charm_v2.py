@@ -58,7 +58,7 @@ COMPLIANT_PYPROJECT = """\
 name = "flask-k8s"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["paas-charm>=2.0.dev1,<3"]
+dependencies = ["paas-charm>=2.0b1,<3"]
 """
 
 COMPLIANT_ROCKCRAFT = """\
@@ -181,7 +181,7 @@ def test_charm_plugin_and_requirements_are_reported(tmp_path: Path) -> None:
         ("==2.0", True),
         ("==2.0.*", True),
         (">=2,<3", True),
-        (">=2.0.dev1,<3", True),
+        (">=2.0b1,<3", True),
         ("~=2.0", True),
         ("==1.11.3", False),
         (">=1,<3", False),
@@ -197,7 +197,7 @@ def test_pin_allows_only_v2(specifier: str, valid: bool) -> None:
 def test_unpinned_paas_charm_is_reported(tmp_path: Path) -> None:
     write_charm(
         tmp_path,
-        pyproject=COMPLIANT_PYPROJECT.replace('"paas-charm>=2.0.dev1,<3"', '"paas-charm"'),
+        pyproject=COMPLIANT_PYPROJECT.replace('"paas-charm>=2.0b1,<3"', '"paas-charm"'),
     )
     report = build_report(discover(tmp_path))
     assert any("unpinned" in violation for violation in report.violations)
