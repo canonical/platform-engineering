@@ -92,7 +92,7 @@ def write_upgrade_docs(root: Path, guide: bool = True, changelog: bool = True) -
     (docs / "how-to").mkdir(parents=True, exist_ok=True)
     if guide:
         (docs / "how-to" / "upgrade.md").write_text(
-            "Juju bug LP#1991955: run `juju remove-application` and redeploy.\n"
+            "Juju before 4.1, bug LP#1991955: run `juju remove-application` and redeploy.\n"
         )
     if changelog:
         (docs / "changelog.md").write_text("Redeploy needed, see LP#1991955.\n")
@@ -522,7 +522,7 @@ def test_missing_changelog_entry_is_reported(tmp_path: Path) -> None:
 
 def test_guide_without_remove_instruction_is_reported(tmp_path: Path) -> None:
     write_charm(tmp_path)
-    (tmp_path / "docs" / "how-to" / "upgrade.md").write_text("See LP#1991955.\n")
+    (tmp_path / "docs" / "how-to" / "upgrade.md").write_text("Juju before 4.1, see LP#1991955.\n")
     violations = build_report(discover(tmp_path)).violations
     assert len(violations) == 1 and violations[0].startswith("upgrade guide")
 
@@ -541,3 +541,12 @@ def test_other_frameworks_skip_upgrade_docs(tmp_path: Path) -> None:
     report = build_report(discover(tmp_path))
     result = next(c for c in report.checks if c.slug == "upgrade-docs")
     assert result.skip_reason and not result.violations
+
+
+def test_guide_without_juju_version_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path)
+    (tmp_path / "docs" / "how-to" / "upgrade.md").write_text(
+        "LP#1991955: run `juju remove-application`.\n"
+    )
+    violations = build_report(discover(tmp_path)).violations
+    assert len(violations) == 1 and "earlier than 4.1" in violations[0]

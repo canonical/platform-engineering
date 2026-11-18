@@ -49,7 +49,7 @@ Confirm with the user, and stop if the answer rules the upgrade out:
    upgrade, signing out users of Flask, Django, FastAPI, ExpressJS and Spring Boot apps unless a
    Juju user secret is supplied.
 3. **Flask or Django only: can the charm be removed and redeployed?** Their workload container
-   is renamed `flask-app`/`django-app` → `app`. Juju 3.x and 4.0 have a bug
+   is renamed `flask-app`/`django-app` → `app`. Juju earlier than 4.1 has a bug
    ([LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955)) that keeps the old container
    alive and fails `juju refresh`, so these charms cannot be refreshed in place: they must be
    removed with `juju remove-application` and redeployed with the new version. Confirm the
@@ -172,7 +172,7 @@ The resource rename is separate from the container rename: update `juju deploy -
 `juju refresh --resource`, Terraform, bundles, overlays, CI/CD and test fixtures. Search the
 whole repository for the old names, not just the charm directory.
 
-For Flask and Django the container rename also breaks `juju refresh` on Juju 3.x and 4.0
+For Flask and Django the container rename also breaks `juju refresh` on Juju earlier than 4.1
 ([LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955)); see Step 7 and Step 8.
 
 Tell the user to reapply any existing secret key as a Juju secret:
@@ -290,7 +290,7 @@ CHARMCRAFT_ENABLE_EXPERIMENTAL_EXTENSIONS=1 charmcraft pack
 Then replace the old charm directory with `charm-26-04` in one move, and give the user the
 upgrade command.
 
-**Flask and Django:** do not give a `juju refresh`. Because of
+**Flask and Django:** do not give a `juju refresh` for Juju earlier than 4.1. Because of
 [LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955), remove the application and deploy
 the new charm, then recreate integrations and config (including the `app-secret-key` secret).
 
@@ -326,8 +326,8 @@ check `juju status` and the ingress and observability relations.
 
 Update the repository's documentation; the `upgrade-docs` check of the validator enforces it:
 
-- The upgrade how-to guide states that the container rename breaks `juju refresh` on Juju 3.x
-  and 4.0 ([LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955)), gives the
+- The upgrade how-to guide states that the container rename breaks `juju refresh` on Juju earlier
+  than 4.1 ([LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955)), gives the
   `juju remove-application` and redeploy steps, and mentions the application secret key reset.
 - Only when the charm declares config options (see Step 7), the guide
   also tells operators to save those option values and the integrations before removing the

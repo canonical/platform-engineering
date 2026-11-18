@@ -554,8 +554,8 @@ def _markdown_files(root: Path) -> list[Path]:
 def check_upgrade_docs(project: Project) -> list[str]:
     """Return violations when the Juju container rename bug is not documented.
 
-    Flask and Django charms rename their workload container, and Juju bug LP#1991955 keeps the
-    old container alive and fails ``juju refresh``. The upgrade guide must tell operators to
+    Flask and Django charms rename their workload container, and Juju bug LP#1991955 (fixed in
+    Juju 4.1) keeps the old container alive and fails ``juju refresh``. The upgrade guide must tell operators to
     remove and redeploy the charm, and the changelog must record it.
     """
     guide_found = False
@@ -567,14 +567,15 @@ def check_upgrade_docs(project: Project) -> list[str]:
         relative = _relative(path, project.root).lower()
         if "changelog" in relative or "release-notes" in relative:
             changelog_found = True
-        elif "remove-application" in text:
+        elif "remove-application" in text and "4.1" in text:
             guide_found = True
     violations: list[str] = []
     if not guide_found:
         violations.append(
-            "upgrade guide: document that the container rename breaks 'juju refresh' "
-            f"(Juju bug LP#{JUJU_CONTAINER_RENAME_BUG}, {JUJU_CONTAINER_RENAME_BUG_URL}) and "
-            "that the charm must be removed with 'juju remove-application' and redeployed"
+            "upgrade guide: document that the container rename breaks 'juju refresh' on Juju "
+            f"earlier than 4.1 (Juju bug LP#{JUJU_CONTAINER_RENAME_BUG}, "
+            f"{JUJU_CONTAINER_RENAME_BUG_URL}) and that the charm must be removed with "
+            "'juju remove-application' and redeployed"
         )
     if not changelog_found:
         violations.append(

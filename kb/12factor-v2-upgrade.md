@@ -41,7 +41,7 @@ FastAPI, ExpressJS, Go and Spring Boot already used `app` / `app-image`. Every `
 `juju refresh`, Terraform module, bundle, overlay and CI job that passes `--resource` must be
 updated.
 
-> **Flask and Django:** on Juju 3.x and 4.0 the container rename cannot be applied with
+> **Flask and Django:** on Juju earlier than 4.1 the container rename cannot be applied with
 > `juju refresh`. The old container stays alive and the refresh fails
 > ([LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955)). Remove the application with
 > `juju remove-application` and redeploy the new charm instead.
