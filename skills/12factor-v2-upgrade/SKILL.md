@@ -142,6 +142,16 @@ extension provides both. Declaring `parts.charm` alongside an extension fails th
   charm's own code needs them; `paas-charm` 2.0 pins its own versions and older pins make
   `uv lock` fail.
 - Keep the empty `charmlibs-pydeps` dependency group if the generated project has one.
+- Move tooling dependencies out of `tox.ini` (`deps =`) and into `[dependency-groups]` in
+  `pyproject.toml`, one group per tox environment (`fmt`, `lint`, `static`, `integration`, ...),
+  and point each environment at its group with `dependency_groups = <group>`. Put `paas-charm` in
+  a shared `charm` group and pull it into the groups that import the charm code with
+  `{include-group = "charm"}`, so the pin lives in one place. Only do this for environments that
+  already list `deps`; do not invent new environments or add tools the repository did not use.
+  Git-based dependencies become `name @ git+https://...` entries. Keep the `charmlibs-pydeps`
+  group empty or as generated, because the uv plugin installs only that group into the charm.
+- Add `uv.lock` to the `codespell` skip list in `pyproject.toml` and to any `--skip` flags in
+  `tox.ini`, since command-line flags override the config and codespell flags words in the lock.
 - Generate and commit the lock file; `charmcraft pack` fails without it.
 
 ```shell
