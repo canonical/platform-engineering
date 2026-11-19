@@ -31,7 +31,8 @@ just test   # validator tests
 
 - Skills: `skills/<name>/SKILL.md` with `name` and `description` front matter.
   `name` must match the folder name.
-- Knowledge base: `kb/<topic>.md` with a `title` and `owner` front matter.
+- Knowledge base: `kb/<topic>.md` for public entries with `title` and `owner` front matter.
+  Agent knowledge lives in `.kb/<topic>.md`, follows `.kb/agents.md`, and is indexed by `AGENTS.md`.
 - Validators: one package per validator in `validators/<name>/` (a member of the uv workspace
   in `validators/pyproject.toml`), with its own `pyproject.toml`, a console script and tests.
 - Use [conventional commits](https://www.conventionalcommits.org/).
