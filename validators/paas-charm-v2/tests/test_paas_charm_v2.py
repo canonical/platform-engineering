@@ -439,7 +439,9 @@ def test_uv_lock_must_be_ignored_by_license_check(tmp_path: Path) -> None:
 def test_removed_requirements_txt_reference_is_reported(tmp_path: Path) -> None:
     write_charm(tmp_path)
     write_rock(tmp_path)
-    (tmp_path / "tox.ini").write_text("[testenv]\ndeps =\n    -r{toxinidir}/charm/requirements.txt\n")
+    (tmp_path / "tox.ini").write_text(
+        "[testenv]\ndeps =\n    -r{toxinidir}/charm/requirements.txt\n"
+    )
     violations = "\n".join(build_report(discover(tmp_path)).violations)
     assert "tox.ini" in violations
 
@@ -447,8 +449,7 @@ def test_removed_requirements_txt_reference_is_reported(tmp_path: Path) -> None:
 def test_gunicorn_constraints_override_is_reported(tmp_path: Path) -> None:
     write_charm(tmp_path)
     rock = COMPLIANT_ROCKCRAFT + (
-        "parts:\n  flask-framework.dependencies:\n    override-build: |\n"
-        "      craftctl default\n"
+        "parts:\n  flask-framework.dependencies:\n    override-build: |\n      craftctl default\n"
     )
     write_rock(tmp_path, rock)
     assert ".gunicorn-constraints.txt" in "\n".join(build_report(discover(tmp_path)).violations)

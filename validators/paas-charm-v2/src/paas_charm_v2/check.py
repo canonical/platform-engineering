@@ -16,11 +16,11 @@ from typing import Any
 
 from paas_charm_v2.paas_config import check_paas_config
 from paas_charm_v2.project import (
-    ProjectError,
     RENAMED_CONTAINER_FRAMEWORKS,
     SKIPPED_DIRECTORIES,
     CharmProject,
     Project,
+    ProjectError,
     RockProject,
     discover,
     load_yaml,
@@ -555,8 +555,8 @@ def check_upgrade_docs(project: Project) -> list[str]:
     """Return violations when the Juju container rename bug is not documented.
 
     Flask and Django charms rename their workload container, and Juju bug LP#1991955 (fixed in
-    Juju 4.1) keeps the old container alive and fails ``juju refresh``. The upgrade guide must tell operators to
-    remove and redeploy the charm, and the changelog must record it.
+    Juju 4.1) keeps the old container alive and fails ``juju refresh``. The upgrade guide must
+    tell operators to remove and redeploy the charm, and the changelog must record it.
     """
     guide_found = False
     changelog_found = False
@@ -616,9 +616,7 @@ def build_report(project: Project) -> ProjectReport:
             [v for c in project.charms for v in check_charm_hooks(c, root)],
         )
         add("repo-ci", "Repository CI", check_repo_ci(project))
-        if any(
-            (c.framework or framework) in RENAMED_CONTAINER_FRAMEWORKS for c in project.charms
-        ):
+        if any((c.framework or framework) in RENAMED_CONTAINER_FRAMEWORKS for c in project.charms):
             add("upgrade-docs", "Upgrade documentation", check_upgrade_docs(project))
         else:
             add(
