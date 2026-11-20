@@ -3,6 +3,7 @@
 
 """Project discovery and file loading for 12-factor charm and rock projects."""
 
+import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -127,13 +128,10 @@ class Project:
 
 def _walk(root: Path) -> list[Path]:
     """Return the directories under ``root``, skipping build and VCS directories."""
-    directories = [root]
-    for path in root.rglob("*"):
-        if not path.is_dir() or path.is_symlink():
-            continue
-        if any(part in SKIPPED_DIRECTORIES for part in path.relative_to(root).parts):
-            continue
-        directories.append(path)
+    directories: list[Path] = []
+    for current, dirnames, _ in os.walk(root):
+        dirnames[:] = sorted(name for name in dirnames if name not in SKIPPED_DIRECTORIES)
+        directories.append(Path(current))
     return directories
 
 

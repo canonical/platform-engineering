@@ -10,6 +10,7 @@ The rules encoded here come from the ``paas-charm`` 2.0 release notes and the
 import argparse
 import re
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -162,7 +163,7 @@ def check_uv_plugin(charm: CharmProject, root: Path) -> list[str]:
     where = _relative(charm.directory / "charmcraft.yaml", root)
     charm_part = (charm.charmcraft.get("parts") or {}).get("charm") or {}
     plugin = charm_part.get("plugin")
-if plugin != "uv":
+    if plugin != "uv":
         violations.append(f"{where}: parts.charm uses the {plugin!r} plugin, expected 'uv'")
     if "charm-strict-dependencies" in charm_part:
         violations.append(
@@ -269,11 +270,39 @@ def check_paas_charm_pin(charm: CharmProject, root: Path) -> list[str]:
     if found is None:
         violations.append(f"{where}: project.dependencies does not declare paas-charm")
     requires_python = (charm.pyproject.get("project") or {}).get("requires-python")
-    if requires_python is not None and not _requires_python_314(str(requires_python)):
+    if requires_python is None:
+        violations.append(
+            f"{where}: requires-python is missing; Ubuntu 26.04 LTS ships Python 3.14, use >=3.14"
+        )
+    elif not _requires_python_314(str(requires_python)):
         violations.append(
             f"{where}: requires-python is {requires_python!r}; Ubuntu 26.04 LTS ships "
             "Python 3.14, use >=3.14"
         )
+    violations += _check_locked_paas_charm(charm, root)
+    return violations
+
+
+def _check_locked_paas_charm(charm: CharmProject, root: Path) -> list[str]:
+    """Return violations when the charm's uv.lock resolves paas-charm to a non-2.x release."""
+    lock_path = find_uv_lock(charm)
+    if lock_path is None:
+        return []
+    where = _relative(lock_path, root)
+    try:
+        lock = tomllib.loads(lock_path.read_text(encoding="utf-8", errors="replace"))
+    except tomllib.TOMLDecodeError as exc:
+        return [f"{where}: cannot be parsed: {exc}"]
+    violations: list[str] = []
+    for package in lock.get("package") or []:
+        name = str((package or {}).get("name", "")).lower().replace("_", "-")
+        if name != "paas-charm":
+            continue
+        version = str(package.get("version", ""))
+        if _version_tuple(version)[0] != 2:
+            violations.append(
+                f"{where}: paas-charm is locked to {version!r}, expected 2.x; run `uv lock`"
+            )
     return violations
 
 
@@ -295,14 +324,14 @@ def check_workload_container(charm: CharmProject, root: Path) -> list[str]:
     violations: list[str] = []
     containers = charm.charmcraft.get("containers") or {}
     resources = charm.charmcraft.get("resources") or {}
-    if containers and "app" not in containers:
+    if "app" not in containers:
         violations.append(
             f"{where}: workload container is {sorted(containers)}, expected 'app' "
             "(flask-app and django-app were renamed in paas-charm 2.0)"
         )
-    for name, body in containers.items():
-        resource = (body or {}).get("resource")
-        if name == "app" and resource not in (None, "app-image"):
+    else:
+        resource = (containers["app"] or {}).get("resource")
+        if resource != "app-image":
             violations.append(
                 f"{where}: containers.app.resource is {resource!r}, expected 'app-image'"
             )
@@ -331,7 +360,7 @@ def check_rock_workload(rock: RockProject, root: Path) -> list[str]:
                 f"{where}: parts.install-app.prime entry {entry!r} must start with 'app' "
                 "on Ubuntu 26.04 LTS"
             )
-    if framework in RENAMED_CONTAINER_FRAMEWORKS and framework in ("flask", "django"):
+    if framework in RENAMED_CONTAINER_FRAMEWORKS:
         override = (parts.get(f"{framework}-framework.dependencies") or {}).get("override-build")
         if override and ".gunicorn-constraints.txt" not in str(override):
             violations.append(
@@ -340,14 +369,15 @@ def check_rock_workload(rock: RockProject, root: Path) -> list[str]:
                 ".gunicorn-constraints.txt; add `printf '%s\\n' 'gunicorn~=26.0' > "
                 ".gunicorn-constraints.txt` before `craftctl default`"
             )
-    if framework in RENAMED_CONTAINER_FRAMEWORKS:
         text = (rock.directory / "rockcraft.yaml").read_text(encoding="utf-8")
-        for legacy in (f"/{framework}/app", f"/{framework}/state", "/app/state"):
-            if legacy in text:
-                violations.append(
-                    f"{where}: references {legacy!r}; the application root is /app and charm "
-                    "state lives in /tmp/paas-charm"
-                )
+        for legacy in sorted(
+            set(re.findall(rf"/{framework}(?:/[A-Za-z0-9._-]+)?(?![A-Za-z0-9._-])", text))
+            | ({"/app/state"} if "/app/state" in text else set())
+        ):
+            violations.append(
+                f"{where}: references {legacy!r}; the application root is /app and charm "
+                "state lives in /tmp/paas-charm"
+            )
     return violations
 
 
@@ -362,15 +392,14 @@ def check_custom_relations(charm: CharmProject, root: Path) -> list[str]:
         text = source.read_text(encoding="utf-8", errors="replace")
         where = _relative(source, root)
         registered |= set(re.findall(r"relation_name\s*=\s*[\"']([^\"']+)[\"']", text))
-        if "custom_relations" not in text:
-            for match in re.finditer(
-                r"\.observe\(\s*[^)]*relation_(created|joined|changed|departed|broken)", text
-            ):
-                line_number = text.count("\n", 0, match.start()) + 1
-                hand_coded.append(
-                    f"{where}:{line_number}: relation event observed directly; move this "
-                    "integration into a paas_charm.relations.CustomRelation subclass"
-                )
+        for match in re.finditer(
+            r"\.observe\(\s*[^)]*relation_(created|joined|changed|departed|broken)", text
+        ):
+            line_number = text.count("\n", 0, match.start()) + 1
+            hand_coded.append(
+                f"{where}:{line_number}: relation event observed directly; move this "
+                "integration into a paas_charm.relations.CustomRelation subclass"
+            )
         if "paas_app_charmer" in text:
             violations.append(
                 f"{where}: the paas_app_charmer import path was removed; import paas_charm"
@@ -404,14 +433,16 @@ def check_charm_contract(charm: CharmProject, root: Path) -> list[str]:
         violations.append(
             f"{where}: the secret-storage peer relation is renamed to peers (interface: peers)"
         )
-    elif peers and "peers" not in peers:
+    elif "peers" not in peers:
         violations.append(f"{where}: missing the 'peers' peer relation")
     options: dict[str, Any] = (charm.charmcraft.get("config") or {}).get("options") or {}
     for option, reason in RETIRED_CONFIG_OPTIONS.items():
         if option in options:
             violations.append(f"{where}: config option {option!r}: {reason}")
     secret_key = options.get("app-secret-key")
-    if isinstance(secret_key, dict) and secret_key.get("type") != "secret":
+    if secret_key is None:
+        violations.append(f"{where}: missing the 'app-secret-key' config option (type: secret)")
+    elif not isinstance(secret_key, dict) or secret_key.get("type") != "secret":
         violations.append(f"{where}: config option 'app-secret-key' must be type: secret")
     for library in charm.charmcraft.get("charm-libs") or []:
         lib = str((library or {}).get("lib", ""))
@@ -479,8 +510,11 @@ def _glob_regex(pattern: str) -> re.Pattern[str]:
     return re.compile(regex)
 
 
-def _licenserc_ignored_patterns(root: Path) -> list[str] | None:
-    """Return the header ``paths-ignore`` patterns, or None when there is no license config."""
+def _licenserc_ignored_patterns(root: Path) -> tuple[str, list[str]] | None:
+    """Return the license config name and its header ``paths-ignore`` patterns.
+
+    Return None when there is no license config.
+    """
     for name in (".licenserc.yaml", ".licenserc.yml"):
         path = root / name
         if not path.is_file():
@@ -488,14 +522,14 @@ def _licenserc_ignored_patterns(root: Path) -> list[str] | None:
         try:
             config = load_yaml(path)
         except ProjectError:
-            return []
+            return name, []
         header = config.get("header") or {}
         sections = header if isinstance(header, list) else [header]
         patterns: list[str] = []
         for section in sections:
             if isinstance(section, dict):
                 patterns += [str(item) for item in section.get("paths-ignore") or []]
-        return patterns
+        return name, patterns
     return None
 
 
@@ -513,35 +547,41 @@ def _is_ignored(relative: str, patterns: list[str]) -> bool:
     return False
 
 
+def _ci_config_files(root: Path) -> list[Path]:
+    """Return the CI configuration files that may reference the charm's requirements."""
+    files = [root / name for name in CI_CONFIG_FILES]
+    workflows = root / ".github" / "workflows"
+    if workflows.is_dir():
+        files += sorted(workflows.glob("*.yaml")) + sorted(workflows.glob("*.yml"))
+    return [path for path in files if path.is_file()]
+
+
 def check_repo_ci(project: Project) -> list[str]:
     """Return violations in repository CI configuration affected by the migration."""
     root = project.root
     violations: list[str] = []
-    ignored = _licenserc_ignored_patterns(root)
+    licenserc = _licenserc_ignored_patterns(root)
     reported: set[str] = set()
     for charm in project.charms:
         lock_path = find_uv_lock(charm)
         if lock_path is None:
             continue
         lock = _relative(lock_path, root)
-        if ignored is not None and lock not in reported and not _is_ignored(lock, ignored):
+        if licenserc is not None and lock not in reported and not _is_ignored(lock, licenserc[1]):
             reported.add(lock)
             violations.append(
-                f".licenserc.yaml: add {lock!r} to header.paths-ignore; the license header "
+                f"{licenserc[0]}: add {lock!r} to header.paths-ignore; the license header "
                 "check fails on the generated uv.lock"
             )
         if charm.has_requirements_txt:
             continue
         requirements = _relative(charm.directory / "requirements.txt", root)
-        for name in CI_CONFIG_FILES:
-            path = root / name
-            if path.is_file() and requirements in path.read_text(
-                encoding="utf-8", errors="replace"
-            ):
+        for path in _ci_config_files(root):
+            if requirements in path.read_text(encoding="utf-8", errors="replace"):
                 violations.append(
-                    f"{name}: references the removed {requirements}; install paas-charm "
-                    "(for example 'paas-charm>=2.0b1,<3') or the charm dependency group "
-                    "instead"
+                    f"{_relative(path, root)}: references the removed {requirements}; install "
+                    "paas-charm (for example 'paas-charm>=2.0b1,<3') or the charm dependency "
+                    "group instead"
                 )
     return violations
 
@@ -571,7 +611,8 @@ def check_upgrade_docs(project: Project) -> list[str]:
             continue
         relative = _relative(path, project.root).lower()
         if "changelog" in relative or "release-notes" in relative:
-            changelog_found = True
+            if re.search(r"redeploy|remove-application", text, re.IGNORECASE):
+                changelog_found = True
         elif "remove-application" in text and "4.1" in text:
             guide_found = True
     violations: list[str] = []
@@ -680,10 +721,14 @@ def build_report(project: Project) -> ProjectReport:
                 if key not in charm.paas_config
             ]
             options = (charm.charmcraft.get("config") or {}).get("options") or {}
+            option_types = {
+                str(name): (body or {}).get("type") if isinstance(body, dict) else None
+                for name, body in options.items()
+            }
             paas_config_violations += [
                 f"{prefix}/{violation}" if prefix not in ("", ".") else violation
                 for violation in check_paas_config(
-                    charm.paas_config, charm.framework or framework, frozenset(map(str, options))
+                    charm.paas_config, charm.framework or framework, option_types
                 )
             ]
         add("paas-config", "paas-config.yaml", paas_config_violations)

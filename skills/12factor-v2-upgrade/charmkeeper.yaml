@@ -49,6 +49,7 @@ guardrails:
           - "**/uv.lock"
           - "**/requirements.txt"
           - ".licenserc.yaml"
+          - ".licenserc.yml"
           - "tox.ini"
           - "Makefile"
           - "noxfile.py"

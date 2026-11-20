@@ -323,7 +323,7 @@ def test_valid_paas_config_passes() -> None:
         },
         "config": {"options": {"log-level": {"env-var": "LOG_LEVEL"}}},
     }
-    assert check_paas_config(config, "flask", frozenset({"log-level"})) == []
+    assert check_paas_config(config, "flask", {"log-level": "string"}) == []
 
 
 @pytest.mark.parametrize(
@@ -351,14 +351,16 @@ def test_paas_config_mapping_rules() -> None:
             }
         }
     }
-    violations = "\n".join(check_paas_config(config, "flask", frozenset({"a", "b", "c"})))
+    violations = "\n".join(
+        check_paas_config(config, "flask", dict.fromkeys(("a", "b", "c"), "string"))
+    )
     assert "exactly one of env-var or secret-env-vars" in violations
     assert "duplicate environment variable destination" in violations
 
 
 def test_paas_config_unknown_source_option() -> None:
     config = {"config": {"options": {"missing": {"env-var": "X"}}}}
-    violations = check_paas_config(config, "flask", frozenset({"log-level"}))
+    violations = check_paas_config(config, "flask", {"log-level": "string"})
     assert any("does not match a config option" in violation for violation in violations)
 
 
@@ -576,3 +578,131 @@ def test_paas_config_requires_port_and_metrics_keys(tmp_path: Path) -> None:
     result = next(c for c in report.checks if c.slug == "paas-config")
     assert len(result.violations) == 2
     assert all("metrics-" in v for v in result.violations)
+
+
+def test_missing_charm_plugin_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path, COMPLIANT_CHARMCRAFT.replace("    plugin: uv\n", ""))
+    violations = "\n".join(build_report(discover(tmp_path)).violations)
+    assert "expected 'uv'" in violations
+
+
+def test_missing_requires_python_is_reported(tmp_path: Path) -> None:
+    write_charm(
+        tmp_path, pyproject=COMPLIANT_PYPROJECT.replace('requires-python = ">=3.14"\n', "")
+    )
+    violations = "\n".join(build_report(discover(tmp_path)).violations)
+    assert "requires-python is missing" in violations
+
+
+def test_locked_paas_charm_1x_is_reported(tmp_path: Path) -> None:
+    directory = write_charm(tmp_path)
+    (directory / "uv.lock").write_text(
+        'version = 1\n\n[[package]]\nname = "paas-charm"\nversion = "1.9.0"\n'
+    )
+    violations = "\n".join(build_report(discover(tmp_path)).violations)
+    assert "locked to '1.9.0'" in violations
+
+
+def test_locked_paas_charm_2x_passes(tmp_path: Path) -> None:
+    directory = write_charm(tmp_path)
+    (directory / "uv.lock").write_text(
+        'version = 1\n\n[[package]]\nname = "paas-charm"\nversion = "2.0.0"\n'
+    )
+    assert build_report(discover(tmp_path)).violations == []
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        ("containers:\n  app:\n    resource: app-image\n", "", "expected 'app'"),
+        ("    resource: app-image\n", "", "expected 'app-image'"),
+        ("peers:\n  peers:\n    interface: peers\n", "", "missing the 'peers'"),
+        ("    app-secret-key:\n      type: secret\n", "", "missing the 'app-secret-key'"),
+    ],
+)
+def test_missing_contract_entries_are_reported(
+    tmp_path: Path, old: str, new: str, expected: str
+) -> None:
+    write_charm(tmp_path, COMPLIANT_CHARMCRAFT.replace(old, new))
+    violations = "\n".join(build_report(discover(tmp_path)).violations)
+    assert expected in violations
+
+
+def test_framework_working_dir_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path)
+    write_rock(
+        tmp_path,
+        COMPLIANT_ROCKCRAFT + "services:\n  worker:\n    command: run\n    working-dir: /flask\n",
+    )
+    violations = "\n".join(build_report(discover(tmp_path)).violations)
+    assert "references '/flask'" in violations
+
+
+def test_relation_observer_next_to_custom_relations_is_reported(tmp_path: Path) -> None:
+    charmcraft = COMPLIANT_CHARMCRAFT.replace(
+        "requires:\n",
+        "requires:\n  temporal:\n    interface: temporal\n    optional: true\n",
+    )
+    write_charm(
+        tmp_path,
+        charmcraft,
+        src__charm_py=textwrap.dedent("""\
+            class TemporalRelation(CustomRelation):
+                relation_name = "temporal"
+
+
+            class FlaskCharm(paas_charm.flask.Charm):
+                custom_relations = [TemporalRelation]
+
+                def __init__(self, *args):
+                    super().__init__(*args)
+                    self.framework.observe(self.on["db"].relation_changed, self._on_changed)
+            """),
+    )
+    violations = "\n".join(build_report(discover(tmp_path)).violations)
+    assert "relation event observed directly" in violations
+
+
+def test_workflow_requirements_reference_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path)
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "test.yaml").write_text("run: pip install -r charm/requirements.txt\n")
+    violations = "\n".join(build_report(discover(tmp_path)).violations)
+    assert ".github/workflows/test.yaml: references the removed" in violations
+
+
+def test_licenserc_yml_is_named_in_message(tmp_path: Path) -> None:
+    write_charm(tmp_path)
+    (tmp_path / ".licenserc.yml").write_text("header:\n  paths-ignore:\n    - LICENSE\n")
+    violations = "\n".join(build_report(discover(tmp_path)).violations)
+    assert ".licenserc.yml: add" in violations
+
+
+def test_changelog_with_bare_bug_reference_is_reported(tmp_path: Path) -> None:
+    write_charm(tmp_path)
+    (tmp_path / "docs" / "changelog.md").write_text("See LP#1991955.\n")
+    violations = build_report(discover(tmp_path)).violations
+    assert len(violations) == 1 and violations[0].startswith("changelog")
+
+
+def test_paas_config_with_no_declared_options() -> None:
+    config = {"config": {"options": {"missing": {"env-var": "X"}}}}
+    violations = check_paas_config(config, "flask", {})
+    assert any("does not match a config option" in violation for violation in violations)
+
+
+def test_paas_config_mapping_must_match_option_type() -> None:
+    config = {
+        "config": {
+            "options": {
+                "token": {"env-var": "TOKEN"},
+                "level": {"secret-env-vars": {"value": "LEVEL"}},
+            }
+        }
+    }
+    violations = "\n".join(
+        check_paas_config(config, "flask", {"token": "secret", "level": "string"})
+    )
+    assert "token is a secret option" in violations
+    assert "level is a string option" in violations

@@ -9,6 +9,7 @@ The schema mirrors the ``paas-charm`` 2.0 reference documentation: top-level
 """
 
 import re
+from collections.abc import Mapping
 from typing import Any
 
 TOP_LEVEL_KEYS = frozenset(
@@ -78,8 +79,12 @@ def _check_prometheus(section: Any) -> list[str]:
     return violations
 
 
-def _check_config(section: Any, declared_options: frozenset[str]) -> list[str]:
-    """Return violations for the ``config.options`` environment variable mappings."""
+def _check_config(section: Any, declared_options: Mapping[str, str | None] | None) -> list[str]:
+    """Return violations for the ``config.options`` environment variable mappings.
+
+    ``declared_options`` maps each option declared in ``charmcraft.yaml`` to its type. When it
+    is None, the option names and types are not checked.
+    """
     if not isinstance(section, dict):
         return ["paas-config.yaml: config must be a mapping"]
     unknown = set(section) - {"options"}
@@ -92,7 +97,7 @@ def _check_config(section: Any, declared_options: frozenset[str]) -> list[str]:
     destinations: dict[str, str] = {}
     for name, mapping in options.items():
         where = f"config.options.{name}"
-        if declared_options and str(name) not in declared_options:
+        if declared_options is not None and str(name) not in declared_options:
             violations.append(
                 f"paas-config.yaml: {where} does not match a config option declared in "
                 "charmcraft.yaml"
@@ -106,6 +111,15 @@ def _check_config(section: Any, declared_options: frozenset[str]) -> list[str]:
                 f"paas-config.yaml: {where} must use exactly one of env-var or secret-env-vars"
             )
             continue
+        option_type = (declared_options or {}).get(str(name))
+        if "env-var" in mapping and option_type == "secret":
+            violations.append(
+                f"paas-config.yaml: {where} is a secret option; map it with secret-env-vars"
+            )
+        elif "secret-env-vars" in mapping and option_type not in (None, "secret"):
+            violations.append(
+                f"paas-config.yaml: {where} is a {option_type} option; map it with env-var"
+            )
         if "env-var" in mapping:
             targets = {str(name): mapping["env-var"]}
         else:
@@ -133,7 +147,7 @@ def _check_config(section: Any, declared_options: frozenset[str]) -> list[str]:
 def check_paas_config(
     config: dict[str, Any],
     framework: str | None = None,
-    declared_options: frozenset[str] = frozenset(),
+    declared_options: Mapping[str, str | None] | None = None,
 ) -> list[str]:
     """Return violations for a parsed ``paas-config.yaml`` document."""
     violations = [
