@@ -97,7 +97,7 @@ extra:
        `webserver-port`, `metrics-port` and `metrics-path` options. Replace the `redis`
        endpoint with `valkey`. Fetch `loki_push_api` version 1.
     3. Dependencies: delete requirements.txt, declare the dependencies in pyproject.toml
-       with `requires-python = ">=3.12"` and `paas-charm>=2.0b1,<3`, and drop pins of
+       with `requires-python = ">=3.14"` and `paas-charm>=2.0b1,<3`, and drop pins of
        ops, pydantic, jsonschema, cosl and dpcharmlibs-interfaces unless the charm's own
        code needs them. Run `uv lock` in the charm directory and commit uv.lock. If uv is
        unavailable, say so in the pull request body instead of hand-writing the lock file.
@@ -110,9 +110,10 @@ extra:
        required-versus-optional semantics into the endpoint's `optional` flag in
        charmcraft.yaml, which is the single source of truth. Every CustomRelation's
        `relation_name` must be declared under `requires`, or the charm aborts at startup.
-    5. paas-config.yaml next to charmcraft.yaml: move any non-default application port and
-       metrics endpoint into `port`, `metrics-port` and `metrics-path`, since the matching
-       Juju config options no longer exist. Move bespoke prometheus_scrape wiring into
+    5. paas-config.yaml next to charmcraft.yaml: always create it and set `port`,
+       `metrics-port` and `metrics-path` explicitly, using the framework defaults when the
+       1.x charm did not override them, since the matching Juju config options no longer
+       exist and docs need a real file to point at. Move bespoke prometheus_scrape wiring into
        `prometheus.scrape_configs`. Use `config.options` to keep workload environment
        variable names that the application already reads. Only add keys the repository
        actually needs. Do not add a `dump` part for it: the extension stages it.
@@ -120,6 +121,11 @@ extra:
        outside the charm. Search the whole repository — Terraform, bundles, overlays,
        CI workflows, scripts, tests and docs — and update every reference, along with the
        container name and the `secret-storage` to `peers` rename.
+    7. Move charm tooling to Python 3.14 (tox basepython, CI python-version) and update any
+       Python policy in renovate.json. Sweep docs (*.md, *.rst, CONTRIBUTING.md, Terraform
+       READMEs) for removed options used with `juju config`, `secret-storage`, the deleted
+       requirements.txt, and old base/paas-charm/ops versions. Add whatever the repository's
+       CONTRIBUTING.md requires for a user-facing change, such as a release-note artifact.
 
     Then run the validator yourself and fix everything it reports:
 

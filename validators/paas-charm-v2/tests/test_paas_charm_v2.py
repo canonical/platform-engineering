@@ -57,8 +57,14 @@ COMPLIANT_PYPROJECT = """\
 [project]
 name = "flask-k8s"
 version = "0.1.0"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = ["paas-charm>=2.0b1,<3"]
+"""
+
+COMPLIANT_PAAS_CONFIG = """\
+port: 8000
+metrics-port: 9102
+metrics-path: /metrics
 """
 
 COMPLIANT_ROCKCRAFT = """\
@@ -78,6 +84,7 @@ def write_charm(root: Path, charmcraft: str = COMPLIANT_CHARMCRAFT, **files: str
     (directory / "charmcraft.yaml").write_text(charmcraft)
     (directory / "pyproject.toml").write_text(files.pop("pyproject", COMPLIANT_PYPROJECT))
     (directory / "uv.lock").write_text("")
+    (directory / "paas-config.yaml").write_text(files.pop("paas_config", COMPLIANT_PAAS_CONFIG))
     write_upgrade_docs(root)
     for name, content in files.items():
         path = directory / name.replace("__", "/").replace("_py", ".py")
@@ -204,7 +211,7 @@ def test_unpinned_paas_charm_is_reported(tmp_path: Path) -> None:
 
 
 def test_old_python_requirement_is_reported(tmp_path: Path) -> None:
-    write_charm(tmp_path, pyproject=COMPLIANT_PYPROJECT.replace(">=3.12", ">=3.10"))
+    write_charm(tmp_path, pyproject=COMPLIANT_PYPROJECT.replace(">=3.14", ">=3.12"))
     report = build_report(discover(tmp_path))
     assert any("requires-python" in violation for violation in report.violations)
 
@@ -476,6 +483,7 @@ def test_charm_in_repo_root_uses_root_uv_lock(tmp_path: Path) -> None:
     (tmp_path / "charmcraft.yaml").write_text(COMPLIANT_CHARMCRAFT)
     (tmp_path / "pyproject.toml").write_text(COMPLIANT_PYPROJECT)
     (tmp_path / "uv.lock").write_text("")
+    (tmp_path / "paas-config.yaml").write_text(COMPLIANT_PAAS_CONFIG)
     write_upgrade_docs(tmp_path)
     write_rock(tmp_path)
     (tmp_path / ".licenserc.yaml").write_text("header:\n  paths-ignore:\n    - 'LICENSE'\n")
@@ -551,3 +559,20 @@ def test_guide_without_juju_version_is_reported(tmp_path: Path) -> None:
     )
     violations = build_report(discover(tmp_path)).violations
     assert len(violations) == 1 and "earlier than 4.1" in violations[0]
+
+
+def test_missing_paas_config_is_reported(tmp_path: Path) -> None:
+    directory = write_charm(tmp_path)
+    (directory / "paas-config.yaml").unlink()
+    report = build_report(discover(tmp_path))
+    result = next(c for c in report.checks if c.slug == "paas-config")
+    assert result.skip_reason is None
+    assert any("missing; add it" in v for v in result.violations)
+
+
+def test_paas_config_requires_port_and_metrics_keys(tmp_path: Path) -> None:
+    write_charm(tmp_path, paas_config="port: 8000\n")
+    report = build_report(discover(tmp_path))
+    result = next(c for c in report.checks if c.slug == "paas-config")
+    assert len(result.violations) == 2
+    assert all("metrics-" in v for v in result.violations)

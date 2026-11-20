@@ -55,7 +55,7 @@ Confirm with the user, and stop if the answer rules the upgrade out:
    removed with `juju remove-application` and redeployed with the new version. Confirm the
    deployment can lose and recreate its integrations, config and any stored data.
 4. **Is the tooling available?** Rockcraft 1.21+, the `latest/edge` Charmcraft snap (stable
-   generates the old contract), `uv`, and Python 3.12+.
+   generates the old contract), `uv`, and Python 3.14 (the Python of Ubuntu 26.04 LTS).
 
 ## Workflow
 
@@ -136,7 +136,11 @@ extension provides both. Declaring `parts.charm` alongside an extension fails th
 ### Step 3: Finish the uv migration
 
 - Delete `requirements.txt`; its dependencies move to `project.dependencies` in `pyproject.toml`.
-- Set `requires-python = ">=3.12"`.
+- Set `requires-python = ">=3.14"`, the Python of Ubuntu 26.04 LTS.
+- Move the repository's charm tooling to Python 3.14 as well: tox `basepython`, the CI
+  `python-version` of charm jobs, and any Python version policy in `renovate.json` (for example
+  `allowedVersions: "<3.13"` or a "Python 3.12 / Ubuntu 24.04" description), so Renovate keeps
+  maintaining the new version instead of fighting it.
 - Pin `paas-charm` to 2.x only: `paas-charm>=2.0b1,<3`.
 - Remove pins of `ops`, `pydantic`, `jsonschema`, `cosl` and `dpcharmlibs-interfaces` unless the
   charm's own code needs them; `paas-charm` 2.0 pins its own versions and older pins make
@@ -277,8 +281,11 @@ user when the old code was ambiguous.
 
 ### Step 6: Adopt `paas-config.yaml`
 
-Create or extend `paas-config.yaml` next to `charmcraft.yaml`, and move settings that no longer
-belong in `charmcraft.yaml` into it. See
+Always create `paas-config.yaml` next to `charmcraft.yaml`, even when the app uses the framework
+defaults, and set `port`, `metrics-port` and `metrics-path` explicitly (copy the defaults from the
+framework table in the recipes if the 1.x charm did not override them). Docs, Terraform READMEs
+and how-tos then point at a real file, and the validator's `paas-config` check requires it. Move
+any other setting that no longer belongs in `charmcraft.yaml` into it. See
 [`references/paas_config_recipes.md`](references/paas_config_recipes.md) for the full schema,
 framework defaults and worked examples.
 
@@ -293,8 +300,38 @@ Adopt, in this order of value:
 5. `config.options` — replaces code that renamed environment variables for the workload, and
    lets the workload keep the variable names it already reads instead of being changed.
 
-Only add keys that the repository actually needs; every key is optional and omitted keys fall
-back to framework defaults.
+Beyond `port`, `metrics-port` and `metrics-path`, only add keys that the repository actually
+needs; omitted keys fall back to framework defaults.
+
+If docs, tests or how-tos set a removed option to a non-default value (for example
+`juju config <app> metrics-port=9102`), either put that value in `paas-config.yaml` or rewrite the
+doc; ask the user which. Never leave a `juju config` command for a removed option.
+
+### Step 6b: Sweep the repository for stale references
+
+The validator only reads charm and rock files. Search the whole repository, including
+`*.md`, `*.rst`, `CONTRIBUTING.md`, Terraform READMEs, spread tasks and `renovate.json`, and fix
+every remaining reference to:
+
+- the removed options (`app-port`, `webserver-port`, `metrics-port`, `metrics-path`,
+  `app-secret-key-id`, `<framework>-secret-key`) used as `juju config` options;
+- `secret-storage` as the peer relation name (now `peers`);
+- the deleted `requirements.txt`;
+- the old base and versions: `ubuntu@24.04`/`22.04` as the charm base, `paas-charm` 1.x, the
+  `ops` pin, Python 3.12, in platform or prerequisite reference pages;
+- `paas-config.yaml` as a source of values it does not set.
+
+```shell
+git grep -nE 'secret-storage|requirements\.txt|app-port|webserver-port|metrics-(port|path)|app-secret-key-id|24\.04|paas-charm.*1\.|3\.12'
+```
+
+Test runner hosts (for example spread `ubuntu-24.04` systems) are not the charm base; leave them.
+
+### Step 6c: Follow the repository's contribution rules
+
+Read `CONTRIBUTING.md` and the PR template, and add what they require for a user-facing change,
+for every framework: typically a release-note or changelog artifact (for example
+`docs/release-notes/artifacts/pr<NNNN>.yaml`), version bumps and doc updates.
 
 ### Step 7: Validate, build and hand over
 
@@ -383,7 +420,10 @@ Close with a summary covering:
 - runtime checks on a real deployment: unit reaches `active`, and files the charm writes exist in the workload container with the expected owner and mode;
 - renames applied outside the charm (Terraform, CI, bundles, docs);
 - integrations converted to `CustomRelation`, and their `optional` flag;
-- `paas-config.yaml` keys adopted and what they replaced;
+- `paas-config.yaml` keys adopted (always `port`, `metrics-port`, `metrics-path`) and what they
+  replaced;
+- the repository sweep: references fixed, release-note artifact added, Python 3.14 and Renovate
+  updates;
 - operator actions that remain: reapplying the `app-secret-key` secret, the session reset, the
   `--resource app-image=` refresh (for Flask and Django, removing and redeploying the charm
   because of LP#1991955), and any Redis-to-Valkey data migration.

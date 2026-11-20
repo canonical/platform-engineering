@@ -1,11 +1,13 @@
 # `paas-config.yaml` recipes
 
-`paas-config.yaml` is an optional, charm-owned, **build-time** file that sits next to
+`paas-config.yaml` is a charm-owned, **build-time** file that sits next to
 `charmcraft.yaml`. It is not `juju config`: its values are packaged into the charm and can only
 be changed by repacking. On Ubuntu 26.04 LTS the framework extension stages it automatically —
 no `dump` part is needed.
 
-Every key is optional; omitted keys use the framework default. Invalid content fails the hook at
+`paas-charm` treats every key as optional, but this migration always sets `port`,
+`metrics-port` and `metrics-path` explicitly (the framework defaults below when not overridden),
+and the validator requires them. Other omitted keys use the framework default. Invalid content fails the hook at
 runtime, so validate before packing.
 
 ## Schema

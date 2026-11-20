@@ -28,6 +28,10 @@ from paas_charm_v2.project import (
 
 TARGET_BASE = "ubuntu@26.04"
 
+# Keys every paas-config.yaml must set explicitly, even to the framework default, so the
+# documented port and metrics endpoint have a single inspectable source.
+REQUIRED_PAAS_CONFIG_KEYS = ("port", "metrics-port", "metrics-path")
+
 CHECK_SLUGS = (
     "charm-base",
     "rock-base",
@@ -265,21 +269,22 @@ def check_paas_charm_pin(charm: CharmProject, root: Path) -> list[str]:
     if found is None:
         violations.append(f"{where}: project.dependencies does not declare paas-charm")
     requires_python = (charm.pyproject.get("project") or {}).get("requires-python")
-    if requires_python is not None and not _requires_python_312(str(requires_python)):
+    if requires_python is not None and not _requires_python_314(str(requires_python)):
         violations.append(
-            f"{where}: requires-python is {requires_python!r}; paas-charm 2.0 needs >=3.12"
+            f"{where}: requires-python is {requires_python!r}; Ubuntu 26.04 LTS ships "
+            "Python 3.14, use >=3.14"
         )
     return violations
 
 
-def _requires_python_312(specifier: str) -> bool:
-    """True if the requires-python specifier admits only Python 3.12 or greater."""
+def _requires_python_314(specifier: str) -> bool:
+    """True if the requires-python specifier admits only Python 3.14 or greater."""
     for clause in specifier.split(","):
         match = _CLAUSE.match(clause.strip())
         if match is None:
             continue
         operator, version, _ = match.groups()
-        if operator in (">=", ">", "==", "~=") and _version_tuple(version) >= (3, 12):
+        if operator in (">=", ">", "==", "~=") and _version_tuple(version) >= (3, 14):
             return True
     return False
 
@@ -656,25 +661,32 @@ def build_report(project: Project) -> ProjectReport:
             [v for c in project.charms for v in check_charm_contract(c, root)],
         )
         paas_config_violations: list[str] = []
-        missing = [c for c in project.charms if not c.has_paas_config_file]
         for charm in project.charms:
+            prefix = _relative(charm.directory, root)
+            where = "paas-config.yaml" if prefix in ("", ".") else f"{prefix}/paas-config.yaml"
+            if not charm.has_paas_config_file:
+                paas_config_violations.append(
+                    f"{where}: missing; add it next to charmcraft.yaml and set port, "
+                    "metrics-port and metrics-path, using the framework defaults when the app "
+                    "does not override them"
+                )
+                continue
             if charm.paas_config is None:
                 continue
+            paas_config_violations += [
+                f"{where}: missing required key {key!r}; set it explicitly, using the "
+                "framework default when the app does not override it"
+                for key in REQUIRED_PAAS_CONFIG_KEYS
+                if key not in charm.paas_config
+            ]
             options = (charm.charmcraft.get("config") or {}).get("options") or {}
-            prefix = _relative(charm.directory, root)
             paas_config_violations += [
                 f"{prefix}/{violation}" if prefix not in ("", ".") else violation
                 for violation in check_paas_config(
                     charm.paas_config, charm.framework or framework, frozenset(map(str, options))
                 )
             ]
-        skip = (
-            "no paas-config.yaml found; add one to configure port, metrics and "
-            "environment variable names"
-            if len(missing) == len(project.charms)
-            else None
-        )
-        add("paas-config", "paas-config.yaml", paas_config_violations, skip)
+        add("paas-config", "paas-config.yaml", paas_config_violations)
 
     if not project.rocks:
         add("rock-base", "Rock base", [], "no rockcraft.yaml found")
