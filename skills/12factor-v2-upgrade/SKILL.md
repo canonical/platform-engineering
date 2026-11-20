@@ -360,6 +360,9 @@ check `juju status` and the ingress and observability relations.
 
 Update the repository's documentation; the `upgrade-docs` check of the validator enforces it:
 
+- The upgrade how-to guide names the first charm revision that ships the upgrade (for example,
+  "Starting with charm revision 21"), so operators know whether it applies to them. Check the
+  revision with `charmcraft status <charm>`; do not pin it in `juju refresh` or deploy commands.
 - The upgrade how-to guide states that the container rename breaks `juju refresh` on Juju earlier
   than 4.1 ([LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955)), gives the
   `juju remove-application` and redeploy steps, and mentions the application secret key reset and how
