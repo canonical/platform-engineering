@@ -162,7 +162,7 @@ def check_uv_plugin(charm: CharmProject, root: Path) -> list[str]:
     where = _relative(charm.directory / "charmcraft.yaml", root)
     charm_part = (charm.charmcraft.get("parts") or {}).get("charm") or {}
     plugin = charm_part.get("plugin")
-    if plugin is not None and plugin != "uv":
+if plugin != "uv":
         violations.append(f"{where}: parts.charm uses the {plugin!r} plugin, expected 'uv'")
     if "charm-strict-dependencies" in charm_part:
         violations.append(
