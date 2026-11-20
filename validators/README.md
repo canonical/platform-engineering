@@ -19,5 +19,6 @@ To add a validator, create the folder and add it to `members` in `validators/pyp
 
 | Validator | Description |
 | --- | --- |
+| [`paas-charm-v2`](paas-charm-v2/) | 12-factor charms and rocks against the `paas-charm` 2.0 contract |
 | [`terraform-compliance`](terraform-compliance/) | Terraform modules against CC008 |
 | [`validate-jira-sync-config`](validate-jira-sync-config/) | gh-jira-sync-bot config against the Platform Engineering charm template conventions |

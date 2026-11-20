@@ -1,0 +1,154 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+#
+# CharmKeeper campaign recipe. Launch it with the GitHub blob URL of this file, for example:
+# https://github.com/canonical/platform-engineering/blob/main/skills/12factor-v2-upgrade/charmkeeper.yaml
+schema: v1
+model: claude-sonnet-5
+description: Upgrade 12-factor app charms and rocks from paas-charm 1.x to 2.0 on Ubuntu 26.04 LTS
+
+eligibility:
+  include:
+    - files: "**/charmcraft.yaml"
+      contains: "django-framework"
+    - files: "**/charmcraft.yaml"
+      contains: "expressjs-framework"
+    - files: "**/charmcraft.yaml"
+      contains: "fastapi-framework"
+    - files: "**/charmcraft.yaml"
+      contains: "flask-framework"
+    - files: "**/charmcraft.yaml"
+      contains: "go-framework"
+    - files: "**/charmcraft.yaml"
+      contains: "spring-boot-framework"
+  exclude:
+    - name: Repository in maintenance-mode
+      topic: "maintenance-mode"
+      exists: true
+    - name: Already compliant with the paas-charm 2.0 contract
+      command: uvx --from '{RECIPE_GIT_URL_BASE}#subdirectory=validators/paas-charm-v2' paas-charm-v2 .
+      exit_code: 0
+
+action: call-llm
+
+pull_request:
+  title: "feat: upgrade to paas-charm 2.0 on Ubuntu 26.04 LTS"
+  branch: "charmkeeper/recipe/12factor-v2-upgrade"
+  labels:
+    - 12-factor
+    - paas-charm
+
+guardrails:
+  - editable_files:
+      - type: matched
+        files:
+          - "**/charmcraft.yaml"
+          - "**/rockcraft.yaml"
+          - "**/paas-config.yaml"
+          - "**/pyproject.toml"
+          - "**/uv.lock"
+          - "**/requirements.txt"
+          - ".licenserc.yaml"
+          - ".licenserc.yml"
+          - "tox.ini"
+          - "Makefile"
+          - "noxfile.py"
+          - "justfile"
+          - "src/**"
+          - "tests/**"
+          - "terraform/**"
+          - ".github/workflows/**"
+          - "*.md"
+          - "docs/**"
+    undeletable_files:
+      - "tests/**"
+
+tests:
+  - name: paas-charm 2.0 compliance
+    prompt: >-
+      Every check of the paas-charm-v2 validator must pass. Run it yourself and fix the
+      reported violations before finishing.
+    run: |
+      uvx --from '{RECIPE_GIT_URL_BASE}#subdirectory=validators/paas-charm-v2' paas-charm-v2 . --verbose
+
+extra:
+  skills:
+    - "./"
+  llm-prompt: |
+    Upgrade this 12-factor app repository from paas-charm 1.x to paas-charm 2.0, which is
+    only supported on the Ubuntu 26.04 LTS base.
+
+    Follow the 12factor-v2-upgrade skill that has been installed for you. It carries the
+    full workflow and two references: one for converting hand-coded integrations to
+    paas_charm.relations.CustomRelation, and one for paas-config.yaml.
+
+    The sandbox is bare: charmcraft, rockcraft, juju and multipass are NOT available. Do
+    not run `charmcraft init`, `charmcraft pack` or `rockcraft pack`, and do not try to
+    install them. Perform the migration by editing the existing project files in place,
+    using the generated Ubuntu 26.04 LTS contract described in the skill as the target.
+
+    Work through, in this order:
+
+    1. Every rockcraft.yaml: `base: ubuntu@26.04`, or `base: bare` with
+       `build-base: ubuntu@26.04`. Rename extension-generated parts from `/` to `.`
+       (`flask-framework/dependencies` becomes `flask-framework.dependencies`), update any
+       `after:` references to them, prefix `parts.install-app.prime` entries with `app`,
+       replace `/flask` and `/django` paths with `/app` (including custom services'
+       `working-dir`), drop anything providing `/app/state`, and bump `version`.
+    2. charmcraft.yaml: `base: ubuntu@26.04`, workload container `app` with resource
+       `app-image`, peer relation `peers` with interface `peers`, a single
+       `app-secret-key` option of `type: secret`, and `parts.charm` using the `uv` plugin
+       with the `astral-uv` build snap and no `charm-strict-dependencies`. Remove the
+       retired `app-secret-key-id`, `flask-secret-key`, `django-secret-key`, `app-port`,
+       `webserver-port`, `metrics-port` and `metrics-path` options. Replace the `redis`
+       endpoint with `valkey`. Fetch `loki_push_api` version 1.
+    3. Dependencies: delete requirements.txt, declare the dependencies in pyproject.toml
+       with `requires-python = ">=3.14"` and `paas-charm>=2.0b1,<3`, and drop pins of
+       ops, pydantic, jsonschema, cosl and dpcharmlibs-interfaces unless the charm's own
+       code needs them. Run `uv lock` in the charm directory and commit uv.lock. If uv is
+       unavailable, say so in the pull request body instead of hand-writing the lock file.
+    4. src/: replace `paas_app_charmer` imports with `paas_charm`, replace the Charmhub
+       hydra OAuth, OpenFGA and tracing libraries with the charmlibs-interfaces-*
+       dependencies, and move every hand-coded relation — anything observing
+       `relation_created`/`changed`/`broken` and injecting workload environment — into a
+       CustomRelation subclass registered through the charm's `custom_relations` class
+       attribute. Preserve the behaviour the 1.x charm had: carry the existing
+       required-versus-optional semantics into the endpoint's `optional` flag in
+       charmcraft.yaml, which is the single source of truth. Every CustomRelation's
+       `relation_name` must be declared under `requires`, or the charm aborts at startup.
+    5. paas-config.yaml next to charmcraft.yaml: always create it and set `port`,
+       `metrics-port` and `metrics-path` explicitly, using the framework defaults when the
+       1.x charm did not override them, since the matching Juju config options no longer
+       exist and docs need a real file to point at. Move bespoke prometheus_scrape wiring into
+       `prometheus.scrape_configs`. Use `config.options` to keep workload environment
+       variable names that the application already reads. Only add keys the repository
+       actually needs. Do not add a `dump` part for it: the extension stages it.
+    6. The OCI resource rename from `<framework>-app-image` to `app-image` breaks things
+       outside the charm. Search the whole repository — Terraform, bundles, overlays,
+       CI workflows, scripts, tests and docs — and update every reference, along with the
+       container name and the `secret-storage` to `peers` rename.
+    7. Move charm tooling to Python 3.14 (tox basepython, CI python-version) and update any
+       Python policy in renovate.json. Sweep docs (*.md, *.rst, CONTRIBUTING.md, Terraform
+       READMEs) for removed options used with `juju config`, `secret-storage`, the deleted
+       requirements.txt, and old base/paas-charm/ops versions. Add whatever the repository's
+       CONTRIBUTING.md requires for a user-facing change, such as a release-note artifact.
+
+    Then run the validator yourself and fix everything it reports:
+
+        uvx --from '{RECIPE_GIT_URL_BASE}#subdirectory=validators/paas-charm-v2' paas-charm-v2 . --verbose
+
+    Keep unit tests passing and update them for the renames. Do not touch unrelated files.
+
+    In the pull request body, call out the operator actions this upgrade requires, because
+    they cannot be automated: the application secret key is regenerated on refresh and
+    signs existing users out unless a Juju user secret is supplied through
+    `app-secret-key`; the refresh needs `--base ubuntu@26.04` and
+    `--resource app-image=<image>`; and any Redis data must be migrated to Valkey.
+
+    For Flask and Django, the workload container rename cannot be applied with
+    `juju refresh` on Juju earlier than 4.1 because of https://bugs.launchpad.net/juju/+bug/1991955:
+    the old container stays alive and the refresh fails. The charm must be removed with
+    `juju remove-application` and redeployed with the new version. Document this, with the bug
+    link, in the repository's upgrade how-to guide and in its changelog, and call it out in
+    the pull request body. The validator's `upgrade-docs` check enforces it. Also
+    note anything you could not complete, such as a lock file you could not regenerate.
