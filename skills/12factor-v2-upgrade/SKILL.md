@@ -14,7 +14,7 @@ description: >
 license: Apache-2.0
 metadata:
   author: Canonical Platform Engineering
-  version: "1.0.0"
+  version: "1.1.0"
   summary: Migrates a 12-factor charm and its rocks from paas-charm 1.x to 2.0 on Ubuntu 26.04 LTS, then validates the result.
   tags:
     - 12-factor
@@ -68,7 +68,8 @@ uvx --from "git+https://github.com/canonical/platform-engineering@paas-charm-v2/
   paas-charm-v2 . --verbose
 ```
 
-Record the failing checks. They are the task list; the validator is the definition of done.
+Record the failing checks. They are the task list; the validator is the definition of done for
+the charm and rock files, and the Step 6b sweep for the rest of the repository.
 
 Also inventory, by reading the repository:
 
@@ -78,7 +79,10 @@ Also inventory, by reading the repository:
   `tracing`, `smtp`, `openfga`, `oidc`, `http-proxy`) versus author-owned;
 - relation handling, Pebble layers and environment plumbing in `src/`;
 - every place that names the OCI resource: Terraform, bundles, overlays, CI, scripts, tests,
-  docs.
+  docs;
+- every place that names a rock by its version: the packed `<rock>_<version>_<arch>.rock` file,
+  image tags, registry tag checks and `--resource app-image=` values in docs, scripts, CI and
+  tests.
 
 ### Step 1: Migrate the rocks
 
@@ -97,11 +101,28 @@ For each `rockcraft.yaml`:
   `/tmp/paas-charm` itself.
 - Point writable application data at `/app-data`, owned by `_daemon_`.
 - For Flask and Django, expect `gunicorn.conf.py` under `/var/lib/gunicorn`.
-- Bump `version` so Kubernetes does not serve a cached image.
+- Bump `version` so Kubernetes does not serve a cached image, then update every reference to
+  the old version as described below.
 - If a Flask or Django rock overrides `override-build` on `<framework>-framework.dependencies`,
   the override replaces the extension's, which writes `.gunicorn-constraints.txt`. Add
   `printf '%s\n' 'gunicorn~=26.0' > .gunicorn-constraints.txt` before `craftctl default`, or
   `rockcraft pack` fails with "Could not open requirements file: .gunicorn-constraints.txt".
+
+The rock `version` is part of the packed file name `<rock>_<version>_<arch>.rock` and of the
+image tags pushed from it, so the bump is not a one-line change. Docs, scripts, CI and tests
+that build from source spell the old version in file names, image tags (including suffixed tags
+such as `<version>-1`), registry tag checks such as `grep -F '"<version>"'` and
+`--resource app-image=` values. Search with the rock's `name` and the old version, dots escaped,
+and update every hit that refers to this rock, except in release notes and changelogs, which
+record earlier versions:
+
+```shell
+git grep -nE '<rock>_<old>_|<rock>:<old>|"<old>"' -- ':!docs/release-notes'
+```
+
+For version `0.1` of the `gopkg` rock, the pattern is `'gopkg_0\.1_|gopkg:0\.1|"0\.1"'`.
+Documentation tests usually deploy the published charm and never run the build-from-source
+pages, so passing CI does not prove these references are right.
 
 Verify the expanded project before packing:
 
@@ -319,6 +340,7 @@ every remaining reference to:
 - the deleted `requirements.txt`;
 - the old base and versions: `ubuntu@24.04`/`22.04` as the charm base, `paas-charm` 1.x, the
   `ops` pin, Python 3.12, in platform or prerequisite reference pages;
+- the old rock version in file names, image tags and registry tag checks (see Step 1);
 - `paas-config.yaml` as a source of values it does not set.
 
 ```shell
@@ -326,6 +348,12 @@ git grep -nE 'secret-storage|requirements\.txt|app-port|webserver-port|metrics-(
 ```
 
 Test runner hosts (for example spread `ubuntu-24.04` systems) are not the charm base; leave them.
+
+The list and the search above name the contract changes, not every value the migration changed in
+this repository. Also search for the old value of everything you changed yourself, such as the
+rock version, part names, the `/flask` and `/django` paths, and the container and resource
+names, and fix every hit that still describes what this repository builds, outside release notes
+and changelogs.
 
 ### Step 6c: Follow the repository's contribution rules
 
@@ -422,8 +450,8 @@ Close with a summary covering:
 - integrations converted to `CustomRelation`, and their `optional` flag;
 - `paas-config.yaml` keys adopted (always `port`, `metrics-port`, `metrics-path`) and what they
   replaced;
-- the repository sweep: references fixed, release-note artifact added, Python 3.14 and Renovate
-  updates;
+- the repository sweep: references fixed, including every reference to the old rock version,
+  release-note artifact added, Python 3.14 and Renovate updates;
 - operator actions that remain: reapplying the `app-secret-key` secret, the session reset, the
   `--resource app-image=` refresh (for Flask and Django, removing and redeploying the charm
   because of LP#1991955), and any Redis-to-Valkey data migration.

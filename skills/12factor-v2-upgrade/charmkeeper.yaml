@@ -94,7 +94,13 @@ extra:
        (`flask-framework/dependencies` becomes `flask-framework.dependencies`), update any
        `after:` references to them, prefix `parts.install-app.prime` entries with `app`,
        replace `/flask` and `/django` paths with `/app` (including custom services'
-       `working-dir`), drop anything providing `/app/state`, and bump `version`.
+       `working-dir`), drop anything providing `/app/state`, and bump `version`. The version
+       is part of the packed `<rock>_<version>_<arch>.rock` file name and of the image tags
+       pushed from it: update every reference to the old version in docs, scripts, CI and
+       tests (file names, image tags including suffixed ones such as `<version>-1`, registry
+       tag checks, `--resource app-image=` values), but not in release notes or changelogs.
+       Find them with `git grep -nE '<rock>_<old>_|<rock>:<old>|"<old>"'`, dots escaped. CI
+       rarely runs the build-from-source docs, so it does not catch a stale version.
     2. charmcraft.yaml: `base: ubuntu@26.04`, workload container `app` with resource
        `app-image`, peer relation `peers` with interface `peers`, a single
        `app-secret-key` option of `type: secret`, and `parts.charm` using the `uv` plugin
@@ -130,8 +136,13 @@ extra:
     7. Move charm tooling to Python 3.14 (tox basepython, CI python-version) and update any
        Python policy in renovate.json. Sweep docs (*.md, *.rst, CONTRIBUTING.md, Terraform
        READMEs) for removed options used with `juju config`, `secret-storage`, the deleted
-       requirements.txt, and old base/paas-charm/ops versions. Add whatever the repository's
-       CONTRIBUTING.md requires for a user-facing change, such as a release-note artifact.
+       requirements.txt, and old base/paas-charm/ops versions. Then search the whole
+       repository for the old value of everything you changed yourself in steps 1 to 6 (the
+       rock version, part names, paths, container and resource names) and fix every hit that
+       still describes what this repository builds, outside release notes and changelogs: a
+       fixed list of names cannot cover those.
+       Add whatever the repository's CONTRIBUTING.md requires for a user-facing change, such
+       as a release-note artifact.
 
     Then run the validator yourself and fix everything it reports:
 
