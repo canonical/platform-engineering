@@ -33,7 +33,8 @@ extra:
     listed in the skill's validator, based on the charm or product this
     repository contains. Make sure every issue template in
     `.github/ISSUE_TEMPLATE/` has a `labels` key containing `bug` or
-    `enhancement`.
+    `enhancement`. Make sure `.github/ISSUE_TEMPLATE/config.yml` exists
+    and sets `blank_issues_enabled: false`.
 
     Do not consider the task finished until the validation command passes.
 tests:
