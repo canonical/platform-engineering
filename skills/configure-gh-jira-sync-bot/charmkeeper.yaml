@@ -34,7 +34,8 @@ extra:
     repository contains. Make sure every issue template in
     `.github/ISSUE_TEMPLATE/` has a `labels` key containing `bug` or
     `enhancement`. Make sure `.github/ISSUE_TEMPLATE/config.yml` exists
-    and sets `blank_issues_enabled: false`.
+    and matches the reference file
+    <https://github.com/canonical/platform-engineering-charm-template/blob/main/.github/ISSUE_TEMPLATE/config.yml>.
 
     Do not consider the task finished until the validation command passes.
 tests:

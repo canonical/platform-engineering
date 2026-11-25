@@ -30,7 +30,7 @@ canonical/platform-engineering-charm-template#165.
    ```
 
    Fix every reported error and re-run until it prints `OK`.
-5. Ensure `.github/ISSUE_TEMPLATE/config.yml` exists with blank issues disabled, so that every issue is created from a template and gets a label (see [Issue template config](#issue-template-config)).
+5. Ensure `.github/ISSUE_TEMPLATE/config.yml` exists, copied from <https://github.com/canonical/platform-engineering-charm-template/blob/main/.github/ISSUE_TEMPLATE/config.yml>, so that every issue is created from a template and gets a label.
 6. Remind the user that the GitHub App of the bot must be installed on the repository.
 
 ## Template conventions
@@ -40,22 +40,6 @@ canonical/platform-engineering-charm-template#165.
 - `label_mapping`: `bug: Bug`, `enhancement: Story`.
 - No `epic_key`.
 - `add_gh_comment: true`.
-
-## Issue template config
-
-`.github/ISSUE_TEMPLATE/config.yml` must disable blank issues. Blank issues have no label and would not be synced to Jira. If the file is missing, create it with this content (the same file as
-<https://github.com/canonical/jenkins-agent-operator/blob/main/.github/ISSUE_TEMPLATE/config.yml>):
-
-```yaml
-# template-version: 1
-# This file is synced from canonical/platform-engineering-charm-template.
-# Remove this comment block to opt this file out of automatic template propagation.
-# Blank issues are disabled so that every issue gets a label and is synced to Jira
-# (see .github/.jira_sync_config.yaml).
-blank_issues_enabled: false
-```
-
-If the file already exists, keep any `contact_links` and set `blank_issues_enabled: false`.
 
 ## Mandatory fields (checked by the validator)
 
