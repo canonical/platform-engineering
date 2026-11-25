@@ -1,9 +1,9 @@
 ---
 name: configure-gh-jira-sync-bot
-description: Configures canonical/gh-jira-sync-bot in a repository by creating or updating .github/.jira_sync_config.yaml following the platform-engineering-charm-template conventions, then validates it. Use when a repository needs GitHub-to-Jira issue synchronization or its Jira sync config must be created, fixed or audited.
+description: Configures canonical/gh-jira-sync-bot in a repository by creating or updating .github/.jira_sync_config.yaml and .github/ISSUE_TEMPLATE/config.yml following the platform-engineering-charm-template conventions, then validates it. Use when a repository needs GitHub-to-Jira issue synchronization or its Jira sync config must be created, fixed or audited.
 metadata:
   author: canonical/platform-engineering
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Configure gh-jira-sync-bot
@@ -30,7 +30,8 @@ canonical/platform-engineering-charm-template#165.
    ```
 
    Fix every reported error and re-run until it prints `OK`.
-5. Remind the user that the GitHub App of the bot must be installed on the repository.
+5. Ensure `.github/ISSUE_TEMPLATE/config.yml` exists, copied from <https://github.com/canonical/platform-engineering-charm-template/blob/main/.github/ISSUE_TEMPLATE/config.yml>, so that every issue is created from a template and gets a label.
+6. Remind the user that the GitHub App of the bot must be installed on the repository.
 
 ## Template conventions
 
