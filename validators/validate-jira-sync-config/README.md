@@ -34,6 +34,8 @@ Exit codes: `0` pass, `1` validation errors (or the file cannot be read).
   `settings.add_gh_comment`, when present, is a boolean.
 - Every issue template in the sibling `.github/ISSUE_TEMPLATE/` directory (YAML or Markdown,
   excluding `config`) has a `labels` key containing `bug` or `enhancement`.
+- `.github/ISSUE_TEMPLATE/config.yml` (or `config.yaml`) exists, even when there are no issue
+  templates, and sets `blank_issues_enabled: false`.
 
 ## Development
 

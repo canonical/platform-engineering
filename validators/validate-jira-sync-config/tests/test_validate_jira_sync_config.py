@@ -7,7 +7,11 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 from validate_jira_sync_config.cli import app
-from validate_jira_sync_config.config import validate_issue_templates, validate_settings
+from validate_jira_sync_config.config import (
+    validate_issue_template_config,
+    validate_issue_templates,
+    validate_settings,
+)
 
 
 def _valid_config() -> dict[str, object]:
@@ -175,7 +179,64 @@ def test_issue_template_without_required_label_is_reported(tmp_path: Path) -> No
     ]
 
 
+def test_issue_template_config_accepts_yml_and_yaml(tmp_path: Path) -> None:
+    for name in ("config.yml", "config.yaml"):
+        issue_template_dir = tmp_path / name
+        issue_template_dir.mkdir()
+        (issue_template_dir / name).write_text("blank_issues_enabled: false\n")
+
+        assert validate_issue_template_config(issue_template_dir) == []
+
+
+def test_missing_issue_template_config_is_reported(tmp_path: Path) -> None:
+    empty_dir = tmp_path / "ISSUE_TEMPLATE"
+    empty_dir.mkdir()
+    (empty_dir / "bug_report.yml").write_text('labels: ["bug"]\n')
+
+    for issue_template_dir in (empty_dir, tmp_path / "does-not-exist"):
+        errors = validate_issue_template_config(issue_template_dir)
+        assert len(errors) == 1
+        assert "config.y*ml is mandatory" in errors[0]
+
+
+def test_issue_template_config_must_disable_blank_issues(tmp_path: Path) -> None:
+    for content in ("blank_issues_enabled: true\n", "contact_links: []\n", "- a\n", ""):
+        (tmp_path / "config.yml").write_text(content)
+        errors = validate_issue_template_config(tmp_path)
+        assert len(errors) == 1
+        assert "`blank_issues_enabled` must be false" in errors[0]
+
+
+def test_unreadable_issue_template_config_is_reported(tmp_path: Path) -> None:
+    (tmp_path / "config.yml").write_text("a: [unclosed\n")
+
+    errors = validate_issue_template_config(tmp_path)
+
+    assert len(errors) == 1
+    assert "cannot read issue template config" in errors[0]
+
+
+def _write_valid_issue_template_config(github_dir: Path) -> None:
+    issue_template_dir = github_dir / "ISSUE_TEMPLATE"
+    issue_template_dir.mkdir(exist_ok=True)
+    (issue_template_dir / "config.yml").write_text("blank_issues_enabled: false\n")
+
+
+def test_cli_fails_without_issue_template_config(tmp_path: Path) -> None:
+    config_path = tmp_path / ".jira_sync_config.yaml"
+    config_path.write_text(
+        "settings:\n  jira_project_key: ISD\n  status_mapping: {opened: a, closed: b}\n"
+        "  labels: [bug, enhancement]\n  components: [CharmCI]\n"
+    )
+
+    result = CliRunner().invoke(app, [str(config_path)])
+
+    assert result.exit_code == 1
+    assert "config.y*ml is mandatory" in result.output
+
+
 def test_cli_prints_ok_for_a_compliant_configuration(tmp_path: Path) -> None:
+    _write_valid_issue_template_config(tmp_path)
     config_path = tmp_path / ".jira_sync_config.yaml"
     config_path.write_text(
         """\

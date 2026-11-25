@@ -3,7 +3,7 @@ name: configure-gh-jira-sync-bot
 description: Configures canonical/gh-jira-sync-bot in a repository by creating or updating .github/.jira_sync_config.yaml and .github/ISSUE_TEMPLATE/config.yml following the platform-engineering-charm-template conventions, then validates it. Use when a repository needs GitHub-to-Jira issue synchronization or its Jira sync config must be created, fixed or audited.
 metadata:
   author: canonical/platform-engineering
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Configure gh-jira-sync-bot
@@ -19,7 +19,7 @@ canonical/platform-engineering-charm-template#165.
 4. Validate:
 
    ```bash
-   uvx --from "git+https://github.com/canonical/platform-engineering@validate-jira-sync-config/v0.1.0#subdirectory=validators/validate-jira-sync-config" \
+   uvx --from "git+https://github.com/canonical/platform-engineering@validate-jira-sync-config/v0.2.0#subdirectory=validators/validate-jira-sync-config" \
      validate-jira-sync-config .github/.jira_sync_config.yaml
    ```
 
@@ -44,7 +44,7 @@ canonical/platform-engineering-charm-template#165.
 ## Mandatory fields (checked by the validator)
 
 `settings.jira_project_key`, `settings.status_mapping.opened`, `settings.status_mapping.closed`,
-a non-empty `settings.components` list of known Jira components, and `settings.labels` containing `bug` and `enhancement`. `settings.epic_key` must not be defined. Every template in `.github/ISSUE_TEMPLATE/` (next to the config) must have a `labels` key containing `bug` or `enhancement`.
+a non-empty `settings.components` list of known Jira components, and `settings.labels` containing `bug` and `enhancement`. `settings.epic_key` must not be defined. Every template in `.github/ISSUE_TEMPLATE/` (next to the config) must have a `labels` key containing `bug` or `enhancement`. `.github/ISSUE_TEMPLATE/config.yml` (or `config.yaml`) must exist and set `blank_issues_enabled: false`.
 
 ## Refreshing the component list
 

@@ -5,8 +5,14 @@
 
 from validate_jira_sync_config.config import (
     VALID_COMPONENTS,
+    validate_issue_template_config,
     validate_issue_templates,
     validate_settings,
 )
 
-__all__ = ["VALID_COMPONENTS", "validate_issue_templates", "validate_settings"]
+__all__ = [
+    "VALID_COMPONENTS",
+    "validate_issue_template_config",
+    "validate_issue_templates",
+    "validate_settings",
+]
