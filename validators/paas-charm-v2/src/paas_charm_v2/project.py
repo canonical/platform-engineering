@@ -78,6 +78,15 @@ class CharmProject:
     parse_errors: tuple[str, ...] = ()
 
     @property
+    def oauth_endpoints(self) -> set[str]:
+        """Return endpoint names handled by the built-in OAuth requirer."""
+        return {
+            name
+            for name, body in (self.charmcraft.get("requires") or {}).items()
+            if isinstance(body, dict) and body.get("interface") == "oauth"
+        }
+
+    @property
     def framework(self) -> str | None:
         """Return the 12-factor framework of the charm, if it can be determined."""
         for extension in self.charmcraft.get("extensions") or []:

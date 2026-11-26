@@ -30,7 +30,7 @@ Flags: `--verbose`, `--check <slug>`, `--list-checks`.
 | `charm-base` | `charmcraft.yaml` declares `base: ubuntu@26.04` and not the legacy `bases` key. |
 | `rock-base` | `rockcraft.yaml` uses `base: ubuntu@26.04`, or `base: bare` with `build-base: ubuntu@26.04`. Extension part names use `.` instead of `/`, `install-app` prime entries start with `app`, and no `/flask`, `/django` (including bare paths such as `working-dir: /flask`) or `/app/state` paths remain. A Flask or Django `<framework>-framework.dependencies` part that sets its own `override-build` must still write `.gunicorn-constraints.txt`, because the override replaces the extension's. |
 | `uv-plugin` | `parts.charm` uses `plugin: uv` with the `astral-uv` build snap and no `charm-strict-dependencies`; `pyproject.toml` and `uv.lock` exist and `requirements.txt` is gone. |
-| `paas-charm-pin` | `project.dependencies` pins `paas-charm` to 2.x only (`==2.0`, `==2.0.*`, `>=2,<3`, `>=2.0b1,<3`), the charm's `uv.lock` resolves `paas-charm` to 2.x, and `requires-python` is set and at least 3.14 (the Python of Ubuntu 26.04 LTS). |
+| `paas-charm-pin` | `project.dependencies` pins `paas-charm` to 2.x only (use `>=2.0b3,<3`), the locked version is at least 2.0b3 and below 3, and `requires-python` is set and at least 3.14 (the Python of Ubuntu 26.04 LTS). |
 | `workload-container` | The `app` workload container is declared with the `app-image` resource (`flask-app`/`django-app` were renamed). |
 | `paas-config` | Every charm has a `paas-config.yaml` that sets `port`, `metrics-port` and `metrics-path` explicitly (framework defaults are fine), so docs have a real file to point at. The file parses and matches the 2.0 schema: known top-level keys, valid `port`/`metrics-port`/`metrics-path`, supported `framework_logging_format`, well-formed `prometheus.scrape_configs`, and `config.options` mappings that name declared options, match the option type (`secret-env-vars` for `secret` options, `env-var` otherwise), use exactly one of `env-var`/`secret-env-vars` and have unique destinations. |
 | `custom-relations` | Non-built-in `requires` endpoints are backed by a `paas_charm.relations.CustomRelation`, every `CustomRelation` is declared under `requires`, relation events are not observed directly in `src/`, no `paas_app_charmer` imports remain, and `redis` is replaced by `valkey`. |
@@ -38,6 +38,10 @@ Flags: `--verbose`, `--check <slug>`, `--list-checks`.
 | `charm-hooks` | The charm does not call `super()._on_config_changed` or `super()._on_pebble_ready`, or define those methods without observing them. `paas-charm` 2.0 removed them (pylint `no-member`, and the override silently never runs); override `_reconcile(self, rerun_migrations=False)` instead. |
 | `repo-ci` | CI configuration still works after the migration: `.licenserc.yaml` (or `.licenserc.yml`) `header.paths-ignore` covers the generated `uv.lock` (the lock next to the charm's `charmcraft.yaml`, matched as a glob; `uv.lock` files elsewhere in the repository belong to other projects and are ignored), and `tox.ini`, `pyproject.toml`, `Makefile`, `noxfile.py`, `justfile` and `.github/workflows/*.y*ml` do not reference the deleted `requirements.txt`. |
 | `upgrade-docs` | Flask and Django only. A Markdown upgrade guide states the problem affects Juju earlier than 4.1, mentions Juju bug [LP#1991955](https://bugs.launchpad.net/juju/+bug/1991955) and `juju remove-application` (the container rename keeps the old container alive and fails `juju refresh`, so the charm must be removed and redeployed), and the changelog or release notes mention the same bug and the remove-and-redeploy step. |
+
+For OAuth, `paas-config` checks that `relations.<endpoint>` names a `requires` endpoint with
+`interface: oauth` and validates its `redirect-path` and `scopes`. `charm-contract` reports the
+retired `<endpoint>-redirect-path` and `<endpoint>-scopes` charm options.
 
 ## Known deviations
 

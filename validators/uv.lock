@@ -87,14 +87,18 @@ wheels = [
 
 [[package]]
 name = "paas-charm-v2"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "paas-charm-v2" }
 dependencies = [
+    { name = "packaging" },
     { name = "pyyaml" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pyyaml", specifier = ">=6.0" }]
+requires-dist = [
+    { name = "packaging", specifier = ">=23" },
+    { name = "pyyaml", specifier = ">=6.0" },
+]
 
 [[package]]
 name = "packaging"

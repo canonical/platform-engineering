@@ -1,11 +1,11 @@
 [project]
 name = "paas-charm-v2"
-version = "0.1.0"
+version = "0.2.0"
 description = "Checks whether a 12-factor charm and rock comply with the paas-charm 2.0 contract"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
-dependencies = ["PyYAML>=6.0"]
+dependencies = ["packaging>=23", "PyYAML>=6.0"]
 
 [project.scripts]
 paas-charm-v2 = "paas_charm_v2.check:main"

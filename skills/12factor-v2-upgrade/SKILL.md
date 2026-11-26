@@ -5,7 +5,7 @@ description: >
   every rock to the Ubuntu 26.04 LTS base, renames the Flask and Django workload container and
   OCI resource to app and app-image, relocates workload paths under /app, converts the charm to
   the uv plugin with a pinned paas-charm 2.x dependency, moves hand-coded relations into
-  CustomRelation classes, adopts paas-config.yaml, and validates the result.
+  CustomRelation classes, migrates OAuth settings to paas-config.yaml for 2.0b3, and validates the result.
   WHEN: upgrade paas-charm, migrate to paas-charm 2.0, paas-charm v1 to v2, 12-factor Ubuntu
   26.04 migration, bump charm or rock base to 26.04, rename flask-app container to app, rename
   django-app-image, migrate charm plugin to uv plugin, pin paas-charm 2.x, create
@@ -14,7 +14,7 @@ description: >
 license: Apache-2.0
 metadata:
   author: Canonical Platform Engineering
-  version: "1.1.0"
+  version: "1.2.0"
   summary: Migrates a 12-factor charm and its rocks from paas-charm 1.x to 2.0 on Ubuntu 26.04 LTS, then validates the result.
   tags:
     - 12-factor
@@ -76,7 +76,7 @@ Also inventory, by reading the repository:
 - every `rockcraft.yaml` and its framework extension;
 - the charm's `requires`, `provides` and `peers` endpoints, and which are built-in
   (`ingress`, `logging`, `postgresql`, `mysql`, `mongodb`, `valkey`, `s3`, `saml`, `rabbitmq`,
-  `tracing`, `smtp`, `openfga`, `oidc`, `http-proxy`) versus author-owned;
+  `tracing`, `smtp`, `openfga`, OAuth endpoints such as `oidc`, `http-proxy`) versus author-owned;
 - relation handling, Pebble layers and environment plumbing in `src/`;
 - every place that names the OCI resource: Terraform, bundles, overlays, CI, scripts, tests,
   docs;
@@ -144,8 +144,8 @@ CHARMCRAFT_ENABLE_EXPERIMENTAL_EXTENSIONS=1 \
 
 Keep every generated declaration: `base: ubuntu@26.04`, the platforms, `charm-user: non-root`,
 `parts.charm` with the `uv` plugin, the `app` container, the `app-image` resource, the `peers`
-peer relation, the secret-typed `app-secret-key` option, the `paas-charm>=2.0b1,<3` dependency
-and the `charmlibs` interface dependencies.
+peer relation, the secret-typed `app-secret-key` option and the `charmlibs` interface dependencies.
+Update the generated `paas-charm` dependency as described below.
 
 Carry forward only application-specific work: charm source and tests, extra config options,
 actions, author-owned relations, charm libraries, custom parts and application Python
@@ -162,7 +162,7 @@ extension provides both. Declaring `parts.charm` alongside an extension fails th
   `python-version` of charm jobs, and any Python version policy in `renovate.json` (for example
   `allowedVersions: "<3.13"` or a "Python 3.12 / Ubuntu 24.04" description), so Renovate keeps
   maintaining the new version instead of fighting it.
-- Pin `paas-charm` to 2.x only: `paas-charm>=2.0b1,<3`.
+- Require `paas-charm>=2.0b3,<3` so the runtime understands static OAuth settings.
 - Remove pins of `ops`, `pydantic`, `jsonschema`, `cosl` and `dpcharmlibs-interfaces` unless the
   charm's own code needs them; `paas-charm` 2.0 pins its own versions and older pins make
   `uv lock` fail.
@@ -186,7 +186,7 @@ uv lock
 - Keep CI working: the charm's `uv.lock` (next to `charmcraft.yaml`; other `uv.lock` files in the repository are unrelated) has no license header and no comment style, so add its path to
   `header.paths-ignore` in `.licenserc.yaml` (skywalking-eyes fails otherwise), and replace every
   reference to the deleted `requirements.txt` in `tox.ini`, `pyproject.toml`, `Makefile` and
-  workflows (for example `-r{toxinidir}/charm/requirements.txt`) with `paas-charm>=2.0b1,<3`
+  workflows (for example `-r{toxinidir}/charm/requirements.txt`) with `paas-charm>=2.0b3,<3`
   or the dependency group.
 
 ### Step 4: Apply the contract renames
@@ -320,6 +320,13 @@ Adopt, in this order of value:
 4. `framework_logging_format: json` — for Flask, Django and FastAPI only.
 5. `config.options` — replaces code that renamed environment variables for the workload, and
    lets the workload keep the variable names it already reads instead of being changed.
+6. For each `requires` endpoint with `interface: oauth`, move the effective
+   `<endpoint>-redirect-path` and `<endpoint>-scopes` to `relations.<endpoint>`.
+   Check deployment overrides before choosing the packaged values; if deployments disagree,
+   confirm which values to ship. Remove the old options, their `config.options` mappings,
+   and overrides in Terraform, bundles, scripts and docs. Follow the
+   [OAuth recipe](references/paas_config_recipes.md#oauth-redirect-path-and-scopes)
+   to update workload consumers and tests for client availability.
 
 Beyond `port`, `metrics-port` and `metrics-path`, only add keys that the repository actually
 needs; omitted keys fall back to framework defaults.
