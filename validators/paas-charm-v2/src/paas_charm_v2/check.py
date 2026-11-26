@@ -15,6 +15,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from packaging.specifiers import SpecifierSet
+from packaging.version import InvalidVersion
+
 from paas_charm_v2.paas_config import check_paas_config
 from paas_charm_v2.project import (
     RENAMED_CONTAINER_FRAMEWORKS,
@@ -208,7 +211,7 @@ def _pin_allows_only_v2(specifier: str) -> bool:
     """True if the specifier admits a 2.x release and excludes 3.0 and later.
 
     Accepts exact and wildcard pins such as ``==2.0`` or ``==2.0.*`` and bounded
-    ranges such as ``>=2,<3`` or ``>=2.0b1,<3``.
+    ranges such as ``>=2,<3`` or ``>=2.0b3,<3``.
     """
     has_lower_bound = False
     has_upper_bound = False
@@ -243,7 +246,7 @@ def check_paas_charm_pin(charm: CharmProject, root: Path) -> list[str]:
             if re.search(r"^\s*paas[-_]charm", text, re.MULTILINE):
                 return [
                     f"{_relative(path, root)}: paas-charm is pinned in requirements.txt; "
-                    'declare "paas-charm>=2.0b1,<3" in pyproject.toml instead'
+                    'declare "paas-charm>=2.0b3,<3" in pyproject.toml instead'
                 ]
         return []
     where = _relative(charm.directory / "pyproject.toml", root)
@@ -260,12 +263,12 @@ def check_paas_charm_pin(charm: CharmProject, root: Path) -> list[str]:
         if not specifier:
             violations.append(
                 f"{where}: paas-charm is unpinned; require 2.x "
-                '(for example "paas-charm>=2.0b1,<3")'
+                '(for example "paas-charm>=2.0b3,<3")'
             )
         elif not _pin_allows_only_v2(specifier):
             violations.append(
                 f"{where}: paas-charm pin {specifier!r} does not resolve to 2.x only "
-                '(use ">=2.0b1,<3")'
+                '(use ">=2.0b3,<3")'
             )
     if found is None:
         violations.append(f"{where}: project.dependencies does not declare paas-charm")
@@ -299,9 +302,13 @@ def _check_locked_paas_charm(charm: CharmProject, root: Path) -> list[str]:
         if name != "paas-charm":
             continue
         version = str(package.get("version", ""))
-        if _version_tuple(version)[0] != 2:
+        try:
+            supported = SpecifierSet(">=2.0b3,<3").contains(version, prereleases=True)
+        except InvalidVersion:
+            supported = False
+        if not supported:
             violations.append(
-                f"{where}: paas-charm is locked to {version!r}, expected 2.x; run `uv lock`"
+                f"{where}: paas-charm is locked to {version!r}, expected >=2.0b3,<3; run `uv lock`"
             )
     return violations
 
@@ -385,7 +392,7 @@ def check_custom_relations(charm: CharmProject, root: Path) -> list[str]:
     """Return violations for hand-coded relation handling in the charm source."""
     violations: list[str] = []
     requires = charm.charmcraft.get("requires") or {}
-    custom_endpoints = {name for name in requires if name not in BUILT_IN_ENDPOINTS}
+    custom_endpoints = set(requires) - BUILT_IN_ENDPOINTS - charm.oauth_endpoints
     registered: set[str] = set()
     hand_coded: list[str] = []
     for source in charm.charm_sources:
@@ -436,6 +443,13 @@ def check_charm_contract(charm: CharmProject, root: Path) -> list[str]:
     elif "peers" not in peers:
         violations.append(f"{where}: missing the 'peers' peer relation")
     options: dict[str, Any] = (charm.charmcraft.get("config") or {}).get("options") or {}
+    for endpoint in sorted(charm.oauth_endpoints):
+        for field in ("redirect-path", "scopes"):
+            if f"{endpoint}-{field}" in options:
+                violations.append(
+                    f"{where}: move {endpoint}-{field} to relations.{endpoint}.{field} "
+                    "in paas-config.yaml"
+                )
     for option, reason in RETIRED_CONFIG_OPTIONS.items():
         if option in options:
             violations.append(f"{where}: config option {option!r}: {reason}")
@@ -580,7 +594,7 @@ def check_repo_ci(project: Project) -> list[str]:
             if requirements in path.read_text(encoding="utf-8", errors="replace"):
                 violations.append(
                     f"{_relative(path, root)}: references the removed {requirements}; install "
-                    "paas-charm (for example 'paas-charm>=2.0b1,<3') or the charm dependency "
+                    "paas-charm (for example 'paas-charm>=2.0b3,<3') or the charm dependency "
                     "group instead"
                 )
     return violations
@@ -728,7 +742,10 @@ def build_report(project: Project) -> ProjectReport:
             paas_config_violations += [
                 f"{prefix}/{violation}" if prefix not in ("", ".") else violation
                 for violation in check_paas_config(
-                    charm.paas_config, charm.framework or framework, option_types
+                    charm.paas_config,
+                    charm.framework or framework,
+                    option_types,
+                    charm.oauth_endpoints,
                 )
             ]
         add("paas-config", "paas-config.yaml", paas_config_violations)

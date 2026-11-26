@@ -13,6 +13,7 @@ Authoritative upstream sources:
 
 - [`paas-charm` 2.0 release notes](https://documentation.ubuntu.com/paas-charm/latest/release-notes/)
 - [How to upgrade](https://documentation.ubuntu.com/paas-charm/latest/how-to/upgrade/)
+- [2.0b3 OAuth migration and examples](https://github.com/canonical/paas-charm/blob/32a2f5c/docs/how-to/upgrade.rst)
 - [`paas-config.yaml` reference](https://documentation.ubuntu.com/paas-charm/latest/reference/paas-config/)
 - [Custom relations reference](https://documentation.ubuntu.com/paas-charm/latest/reference/custom-relations/)
 - [uv plugin migration](https://documentation.ubuntu.com/paas-charm/latest/how-to/uv-migration/)
@@ -102,6 +103,11 @@ The charm-owned, build-time `paas-config.yaml` sits next to `charmcraft.yaml`. T
 | `framework_logging_format: json` | Structured framework logs (Flask, Django, FastAPI only). |
 | `prometheus.scrape_configs` | Extra scrape jobs, appended to the framework job. |
 | `config.options` | Rename environment variables generated from config options and secrets. |
+| `relations.<endpoint>` | Since 2.0b3, package OAuth `redirect-path` and `scopes` for a `requires` endpoint with `interface: oauth`. |
+
+The old `<endpoint>-redirect-path` and `<endpoint>-scopes` Juju options are no longer read.
+Remove their environment mappings too. See the [OAuth migration recipe](../skills/12factor-v2-upgrade/references/paas_config_recipes.md#oauth-redirect-path-and-scopes)
+for defaults, scope validation and the workload contract after client registration.
 
 `config.options` entries use exactly one of `env-var` (plain option) or `secret-env-vars`
 (option of `type: secret`). Mappings replace default names rather than adding aliases, apply to

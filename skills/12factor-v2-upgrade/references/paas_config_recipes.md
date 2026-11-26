@@ -104,6 +104,8 @@ Go, ExpressJS or Spring Boot fails validation. Output follows OTEL semantic conv
 
 ## Environment variable mappings
 
+For retired OAuth options, use `relations` instead (see below).
+
 `config.options` renames the environment variables generated from charm configuration options
 and secrets. It does not declare options or set values.
 
@@ -144,6 +146,31 @@ destination — never the value.
 Without a mapping, a user-defined option cannot replace a framework field of the same name: a
 `application-root` option does not override Flask's `flask-application-root` unless mapped
 explicitly.
+
+## OAuth redirect path and scopes
+
+In 2.0b3, OAuth settings are packaged per endpoint. Use the name from `requires` in
+`charmcraft.yaml`, not the interface name. Only `interface: oauth` accepts these settings.
+For example, for an endpoint named `staff-login`:
+
+```yaml
+relations:
+  staff-login:
+    redirect-path: /auth/callback
+    scopes: [openid, email]
+```
+
+Use the application's callback path. Convert the old space-separated scopes into a YAML list
+of non-empty strings without whitespace; include `openid`. Omit either field to use its
+default (`/callback` or `[openid, profile, email]`), or omit the endpoint if both defaults fit.
+
+Delete mappings for the old options and update consumers of their aliases. Once the client
+is available, Flask gets `FLASK_STAFF_LOGIN_REDIRECT_PATH` and `FLASK_STAFF_LOGIN_SCOPES`
+(space-separated). Django uses `DJANGO_`; ExpressJS, FastAPI and Go use `APP_`.
+Spring Boot instead gets the full redirect URI and comma-separated scopes under
+`spring.security.oauth2.client.registration.staff-login.redirect-uri` and `.scope`.
+Test the registered callback and scopes with a client, and for optional OAuth verify the
+workload can start with those settings absent.
 
 ## Precedence
 

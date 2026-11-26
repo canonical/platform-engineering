@@ -109,7 +109,7 @@ extra:
        `webserver-port`, `metrics-port` and `metrics-path` options. Replace the `redis`
        endpoint with `valkey`. Fetch `loki_push_api` version 1.
     3. Dependencies: delete requirements.txt, declare the dependencies in pyproject.toml
-       with `requires-python = ">=3.14"` and `paas-charm>=2.0b1,<3`, and drop pins of
+       with `requires-python = ">=3.14"` and `paas-charm>=2.0b3,<3`, and drop pins of
        ops, pydantic, jsonschema, cosl and dpcharmlibs-interfaces unless the charm's own
        code needs them. Run `uv lock` in the charm directory and commit uv.lock. If uv is
        unavailable, say so in the pull request body instead of hand-writing the lock file.
@@ -129,6 +129,10 @@ extra:
        `prometheus.scrape_configs`. Use `config.options` to keep workload environment
        variable names that the application already reads. Only add keys the repository
        actually needs. Do not add a `dump` part for it: the extension stages it.
+       For requires endpoints with interface oauth, follow the skill's OAuth recipe: move
+       redirect-path and scopes to relations.<endpoint>, converting scopes to a YAML list.
+       Remove retired options, mappings and deployment overrides; update workload consumers
+       and tests for client availability and Spring Boot's native registration properties.
     6. The OCI resource rename from `<framework>-app-image` to `app-image` breaks things
        outside the charm. Search the whole repository — Terraform, bundles, overlays,
        CI workflows, scripts, tests and docs — and update every reference, along with the

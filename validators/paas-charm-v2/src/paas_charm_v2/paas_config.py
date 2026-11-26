@@ -5,7 +5,7 @@
 
 The schema mirrors the ``paas-charm`` 2.0 reference documentation: top-level
 ``port``, ``metrics-port``, ``metrics-path``, ``framework_logging_format``,
-``prometheus`` and ``config`` keys.
+``prometheus``, ``relations`` and ``config`` keys.
 """
 
 import re
@@ -20,6 +20,7 @@ TOP_LEVEL_KEYS = frozenset(
         "framework_logging_format",
         "prometheus",
         "config",
+        "relations",
     }
 )
 
@@ -144,10 +145,43 @@ def _check_config(section: Any, declared_options: Mapping[str, str | None] | Non
     return violations
 
 
+def _check_relations(section: Any, oauth_endpoints: set[str] | None) -> list[str]:
+    """Validate the static OAuth settings supported since 2.0b3."""
+    if not isinstance(section, dict):
+        return ["paas-config.yaml: relations must be a mapping"]
+    violations = []
+    for endpoint, settings in section.items():
+        where = f"paas-config.yaml: relations.{endpoint}"
+        if oauth_endpoints is not None and endpoint not in oauth_endpoints:
+            violations.append(f"{where} must name a requires endpoint with interface oauth")
+        if not isinstance(settings, dict):
+            violations.append(f"{where} must be a mapping")
+            continue
+        for key in settings.keys() - {"redirect-path", "scopes"}:
+            violations.append(f"{where}: unknown field {key!r}")
+        if "redirect-path" in settings:
+            path = settings["redirect-path"]
+            if not isinstance(path, str) or not path:
+                violations.append(f"{where}.redirect-path must be a non-empty string")
+        if "scopes" in settings:
+            scopes = settings["scopes"]
+            if (
+                not isinstance(scopes, list)
+                or "openid" not in scopes
+                or any(not isinstance(s, str) or not s or re.search(r"\s", s) for s in scopes)
+            ):
+                violations.append(
+                    f"{where}.scopes must list non-empty strings without whitespace, "
+                    "including openid"
+                )
+    return violations
+
+
 def check_paas_config(
     config: dict[str, Any],
     framework: str | None = None,
     declared_options: Mapping[str, str | None] | None = None,
+    oauth_endpoints: set[str] | None = None,
 ) -> list[str]:
     """Return violations for a parsed ``paas-config.yaml`` document."""
     violations = [
@@ -174,4 +208,6 @@ def check_paas_config(
         violations += _check_prometheus(config["prometheus"])
     if "config" in config:
         violations += _check_config(config["config"], declared_options)
+    if "relations" in config:
+        violations += _check_relations(config["relations"], oauth_endpoints)
     return violations

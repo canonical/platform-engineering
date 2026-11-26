@@ -126,6 +126,43 @@ def test_legacy_base_is_reported(tmp_path: Path) -> None:
     assert violations and "ubuntu@26.04" in violations[0]
 
 
+def test_oauth_migration_uses_declared_endpoint(tmp_path: Path) -> None:
+    charmcraft = COMPLIANT_CHARMCRAFT.replace(
+        "requires:\n", "requires:\n  staff-login:\n    interface: oauth\n"
+    )
+    directory = write_charm(
+        tmp_path,
+        charmcraft,
+        paas_config=COMPLIANT_PAAS_CONFIG
+        + "relations:\n  staff-login:\n    redirect-path: /auth/callback\n"
+        "    scopes: [openid, email]\n",
+    )
+    assert build_report(discover(tmp_path)).violations == []
+    (directory / "charmcraft.yaml").write_text(
+        charmcraft.replace(
+            "  options:\n", "  options:\n    staff-login-scopes:\n      type: string\n"
+        )
+    )
+    assert any("move staff-login-scopes" in v for v in build_report(discover(tmp_path)).violations)
+
+
+@pytest.mark.parametrize(
+    ("relations", "expected"),
+    [
+        ([], "relations must be a mapping"),
+        ({"postgresql": {}}, "requires endpoint with interface oauth"),
+        ({"staff-login": {"scope": ["openid"]}}, "unknown field"),
+        ({"staff-login": {"redirect-path": ""}}, "non-empty string"),
+        ({"staff-login": {"scopes": "openid profile"}}, ".scopes"),
+        ({"staff-login": {"scopes": ["email"]}}, ".scopes"),
+        ({"staff-login": {"scopes": ["openid", "two words"]}}, ".scopes"),
+    ],
+)
+def test_invalid_oauth_settings(relations: object, expected: str) -> None:
+    errors = check_paas_config({"relations": relations}, oauth_endpoints={"staff-login"})
+    assert any(expected in error for error in errors)
+
+
 def test_bases_key_is_reported(tmp_path: Path) -> None:
     write_charm(tmp_path, "name: flask-k8s\nbases:\n  - name: ubuntu\n    channel: '22.04'\n")
     project = discover(tmp_path)
@@ -594,19 +631,21 @@ def test_missing_requires_python_is_reported(tmp_path: Path) -> None:
     assert "requires-python is missing" in violations
 
 
-def test_locked_paas_charm_1x_is_reported(tmp_path: Path) -> None:
+@pytest.mark.parametrize("version", ["1.9.0", "2.0b2"])
+def test_old_locked_paas_charm_is_reported(tmp_path: Path, version: str) -> None:
     directory = write_charm(tmp_path)
     (directory / "uv.lock").write_text(
-        'version = 1\n\n[[package]]\nname = "paas-charm"\nversion = "1.9.0"\n'
+        f'version = 1\n\n[[package]]\nname = "paas-charm"\nversion = "{version}"\n'
     )
     violations = "\n".join(build_report(discover(tmp_path)).violations)
-    assert "locked to '1.9.0'" in violations
+    assert f"locked to {version!r}" in violations
 
 
-def test_locked_paas_charm_2x_passes(tmp_path: Path) -> None:
+@pytest.mark.parametrize("version", ["2.0b3", "2.0.0"])
+def test_locked_paas_charm_2x_passes(tmp_path: Path, version: str) -> None:
     directory = write_charm(tmp_path)
     (directory / "uv.lock").write_text(
-        'version = 1\n\n[[package]]\nname = "paas-charm"\nversion = "2.0.0"\n'
+        f'version = 1\n\n[[package]]\nname = "paas-charm"\nversion = "{version}"\n'
     )
     assert build_report(discover(tmp_path)).violations == []
 
