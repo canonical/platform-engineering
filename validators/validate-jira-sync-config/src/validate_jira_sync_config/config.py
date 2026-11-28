@@ -185,3 +185,28 @@ def validate_issue_templates(issue_template_dir: Path) -> list[str]:
         if not isinstance(labels, list) or not set(REQUIRED_LABELS) & set(labels):
             errors.append(f"{template_path}: `labels` must contain bug or enhancement")
     return errors
+
+
+def validate_issue_template_config(issue_template_dir: Path) -> list[str]:
+    """`config.yml` or `config.yaml` must exist and disable blank issues."""
+    config_paths = [
+        path
+        for path in (issue_template_dir / "config.yml", issue_template_dir / "config.yaml")
+        if path.is_file()
+    ]
+    if not config_paths:
+        return [
+            f"{issue_template_dir}/config.y*ml is mandatory, copy it from "
+            "https://github.com/canonical/platform-engineering-charm-template"
+        ]
+    config_path = config_paths[0]
+    try:
+        parsed = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as error:
+        return [f"{config_path}: cannot read issue template config: {error}"]
+    if not isinstance(parsed, dict) or parsed.get("blank_issues_enabled") is not False:
+        return [
+            f"{config_path}: `blank_issues_enabled` must be false so that every issue "
+            "gets a label and is synced to Jira"
+        ]
+    return []

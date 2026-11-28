@@ -9,7 +9,11 @@ from typing import Annotated
 import typer
 import yaml
 
-from validate_jira_sync_config.config import validate_issue_templates, validate_settings
+from validate_jira_sync_config.config import (
+    validate_issue_template_config,
+    validate_issue_templates,
+    validate_settings,
+)
 
 
 def main(
@@ -23,6 +27,7 @@ def main(
         raise typer.Exit(code=1) from error
     errors = validate_settings(config)
     issue_template_dir = config_path.resolve().parent / "ISSUE_TEMPLATE"
+    errors += validate_issue_template_config(issue_template_dir)
     if issue_template_dir.is_dir():
         errors += validate_issue_templates(issue_template_dir)
     for error in errors:
